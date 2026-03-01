@@ -1,0 +1,81 @@
+Pubs: Table 1
+Pub ID,Pub Name,Notes about pub,Address,Latitude,Longitude,Opening days,Opening From,Opening To,Visit Date,Spot A ID,Spot A Type,Spot A Detail,Spot A Sun In,Spot A Sun Out,Spot B ID,Spot B Type,Spot B Detail,Spot B Sun In,Spot B Sun Out,Spot C ID,Spot C Type,Spot C Detail,Spot C Sun In,Spot C Sun Out
+PUB001,King William IV,,"6 Eyre St, Sneinton, NG2 4RG",52.9515,-1.1352,Monday to Sunday,13:00,22:00,28/02/2026,PUB001-A,Terrace on the roof,,07:55,15:20,PUB001-B,Front Window,Side window behind main bar ,11.50,16.17,PUB001-C,,,,
+PUB002,Fox & Grapes,,"21 Southwell Rd, NG1 1DL",52.9535,-1.139,Monday to Sunday,14:00,22:00,28/02/2026,PUB002-A,Table on the left side of entrance ,,07:04,09:41,PUB002-B,Front Window,,07:59,12:33,PUB002-C,,,,
+PUB003,Neon Raptor,,"Unit 14 Avenue A, Sneinton Market, NG1 1DT",52.954,-1.1394,Monday to Sunday,14:00,21:00,28/02/2026,PUB003-A,Table on the left side of entrance ,,10:07,17:10,PUB003-B,,,,,PUB003-C,,,,
+PUB004,Liquid Light,,Robin Hood Industrial Est,52.9538,-1.1385,Monday to Sunday,14:00,21:00,15/08/2026,PUB004-A,Font Bench,,18:58,20:16,PUB004-B,,,,,PUB004-C,,,,
+PUB005,Bunkers Hill,,"36-38 Hockley, NG1 1FP",52.9545,-1.1418,Monday to Sunday,11:00,23:00,15/08/2026,PUB005-A,Font Bench,,07:07,11:13,PUB005-B,,,,,PUB005-C,,,,
+PUB006,Lord Roberts,,"24 Broad St, NG1 3AN",52.9554,-1.1444,Monday to Sunday,14:00,22:00,15/08/2026,PUB006-A,Courtyard ,,07:23,18:58,PUB006-B,,,,,PUB006-C,,,,
+PUB007,Lion At Basford,,"44 Mosley St, New Basford, NG7 7FQ",52.9774,-1.1712,Monday to Sunday,14:00,22:00,15/08/2026,PUB007-A,Large garden area,,09:00,19:31,PUB007-B,Terrace at back of pub,,12:59,16:37,PUB007-C,,,,
+PUB008,trip to Jerusalem,,"1 Brewhouse Yard, NG1 6AD",52.9494,-1.1526,Monday to Sunday,14:00,22:00,15/08/2026,PUB008-A,Beer Garden,Tree coverage,13:16,17:35,PUB008-B,Wall on front ,Tree coverage,08:55,17:49,PUB008-C,,,,
+PUB009,Lincolnshire poacher,,"161-163 Mansfield Rd, NG1 3FR",52.9628,-1.1504,Monday to Sunday,14:00,22:00,15/08/2026,PUB009-A,Courtyard ,,14:27,17:13,PUB009-B,,,,,PUB009-C,,,,
+PUB010,Sir John Borlase Warren,,"1 Ilkeston Rd, Canning Circus, NG7 3GD",52.9567,-1.1611,Monday to Sunday,14:00,22:00,15/08/2026,PUB010-A,Terrace at back of pub,,14:49,17:34,PUB010-B,,,,,PUB010-C,,,,
+PUB011,Blue Monkey,,"10 Pentrich Rd, Giltbrook, NG16 2UZ",53.0035,-1.2721,Monday to Sunday,14:00,14:00,,PUB011-A,Roof,,,,PUB011-B,,,,,PUB011-C,,,,
+PUB012,the angel,,"7 Stoney St, NG1 1LG",52.9534,-1.1434,Monday to Sunday,14:00,23:00,15/08/2026,PUB012-A,Table in front of pub,Top pick,15:15,16:55,PUB012-B,Terrace at back of pub,,09:17,13:57,PUB012-C,,,,
+PUB013,junkyard/kilpin,,"12 Bridlesmith Walk, NG1 2FZ",52.9525,-1.1472,Monday to Sunday,14:00,22:00,15/08/2026,PUB013-A,Courtyard ,Down an alley,12:24,14:58,PUB013-B,,,,,PUB013-C,,,,
+PUB014,pitcher and piano,,"High Pavement, NG1 1HN",52.9515,-1.1445,Monday to Sunday,14:00,22:00,15/08/2026,PUB014-A,Terrace at back of pub,,13:22,18:46,PUB014-B,,,,,PUB014-C,,,,
+PUB015,navigation,,"6 Wilford St, NG2 1AA",52.9478,-1.1517,Monday to Sunday,14:00,22:00,15/08/2026,PUB015-A,Canelside Seating ,,10:22,18:51,PUB015-B,canelside at the end sitting on the bike ledge,,13:24,19:10,PUB015-C,,,,
+PUB016,bodega,,"23 Pelham St, NG1 2ED",52.9543,-1.1465,Monday to Sunday,14:00,23:00,15/08/2026,PUB016-A,Table on the right side of entrance ,,12:10,14:09,PUB016-B,,,,,PUB016-C,,,,
+PUB017,The magic garden,,"24-26 Low Pavement, NG1 7DL",52.9511,-1.1468,Monday to Sunday,14:00,22:00,15/08/2026,PUB017-A,Tables in alley ,,12:25,13:59,PUB017-B,,,,,PUB017-C,,,,
+PUB018,Another,,"9 Trinity Walk, NG1 2AN",52.9549,-1.1487,Monday to Sunday,14:00,14:00,,PUB018-A,Roof,,,,PUB018-B,Roof,,,,PUB018-C,Roof,,,
+PUB019,The Pelcian Club,,"55 St Mary's Gate, NG1 1PU",52.9523,-1.1436,Monday to Sunday,14:00,23:00,15/08/2026,PUB019-A,Courtyard ,Evening light ,16:46,18:56,PUB019-B,,,,,PUB019-C,,,,
+PUB020,Playhouse,,"Wellington Circus, NG1 5AL",52.9539,-1.1554,Monday to Sunday,14:00,14:00,15/08/2026,PUB020-A,Table in front of pub,Closed. Take a can instead ,12:33,17:07,PUB020-B,,,,,PUB020-C,,,,
+PUB021,Roundhouse,,"Royal Standard Place, NG1 6FS",52.9526,-1.1557,Monday to Sunday,14:00,22:00,15/08/2026,PUB021-A,Table in front of pub,Top pick for all day sun,09:20,20:04,PUB021-B,,,,,PUB021-C,,,,
+PUB022,Castle and Fothergills,,"5-7 Castle Rd, NG1 6AA",52.9497,-1.1534,Monday to Sunday,14:00,22:00,15/08/2026,PUB022-A,Table in front of pub,Gets busy ,11:37,20:05,PUB022-B,,,,,PUB022-C,,,,
+PUB023,Bustler Street Market,,"Avenue E, Sneinton Market, NG1 1DW",52.9542,-1.1388,Monday to Sunday,14:00,23:00,15/08/2026,PUB023-A,Table in front of pub,,15:54,20:25,PUB023-B,Courtyard ,,14:55,18:03,PUB023-C,,,,
+PUB024,The Organ Grinder,,"21 Alfreton Rd, NG7 3JE",52.9575,-1.1614,Monday to Sunday,14:00,23:00,15/08/2026,PUB024-A,Terrace at back of pub,,13:44,18:09,PUB024-B,,,,,PUB024-C,,,,
+PUB025,The Blind Rabbit,,"9 Weekday Cross, NG1 2GB",52.9515,-1.1458,Monday to Sunday,14:00,22:00,15/08/2026,PUB025-A,Table in front of pub,,12:47,18:45,PUB025-B,,,,,PUB025-C,,,,
+PUB026,Blend,,"Unit 30 Avenue C, NG1 1DW",52.9541,-1.1396,Monday to Sunday,10:00,19:00,15/08/2026,PUB026-A,Bench on Pavment,Coffee and cakes ,10:09,19:08,PUB026-B,,,,,PUB026-C,,,,
+PUB027,Café Coco Tang,,"8 Byard Ln, NG1 2GJ",52.9532,-1.1471,Monday to Sunday,14:00,23:00,15/08/2026,PUB027-A,Roof,,10:47,15:46,PUB027-B,,,,,PUB027-C,,,,
+PUB028,Hopkinson,,"21 Station St, NG2 3AJ",52.9472,-1.1466,Monday to Sunday,14:00,20:00,15/08/2026,PUB028-A,Bench on Pavment,,09:32,19:43,PUB028-B,,,,,PUB028-C,,,,
+PUB029,Embankment Pub,,"282-284 Arkwright St, NG2 2GR",52.9405,-1.1417,Monday to Sunday,14:00,22:00,15/08/2026,PUB029-A,Beer Garden,Tables near the street are best,13:38,17:01,PUB029-B,Roof,,,,PUB029-C,Roof,,,
+PUB030,The Vat & Fiddle,,"12 Queensbridge Rd, NG2 1NB",52.9461,-1.1472,Tuesday to Saturday ,14:00,22:00,15/08/2026,PUB030-A,Font Bench,,08:02,15:25,PUB030-B,,,,,PUB030-C,,,,
+PUB031,The Bath Inn,,"1 Handley St, Sneinton, NG2 4AD",52.9518,-1.1371,Monday to Sunday,12:00,22:00,15/08/2026,PUB031-A,Font Bench,,11:27,20:21,PUB031-B,,,,,PUB031-C,,,,
+PUB032,Cured,,"97 Carrington St, NG1 7FE",52.9482,-1.1464,Tuesday to Saturday ,12:00,22:00,15/08/2026,PUB032-A,Down stairs by the canal ,,10:18,19:18,PUB032-B,,,,,PUB032-C,,,,
+PUB033,The Newshouse,,"123 Canal St, NG1 7HB",52.9474,-1.1492,Monday to Sunday,14:00,21:00,15/08/2026,PUB033-A,Terrace at back of pub,,14:48,19:08,PUB033-B,,,,,PUB033-C,,,,
+PUB034,Cock & Hoop,,"25-27 High Pavement, NG1 1HE",52.9511,-1.1444,Monday to Sunday,10:00,22:00,15/08/2026,PUB034-A,Table in front of pub,Day drinkers unite,09:00,10:40,PUB034-B,Table in front of pub,Buy a pizza from Pizzamisu,17:23,19:13,PUB034-C,,,,
+PUB035,Jamcafé,Afro Beat heaven ,"12 Heathcoat St, NG1 3AA",52.9555,-1.1448,Monday to Sunday,14:00,23:00,15/08/2026,PUB035-A,Table in front of pub,Come back later for a dance,13:42,15:15,PUB035-B,,,,,PUB035-C,,,,
+PUB036,The Ned Ludd,,"27 Friar Ln, NG1 6BT",52.9529,-1.1511,Monday to Sunday,14:00,22:00,15/08/2026,PUB036-A,Table in front of pub,,16:34,19:44,PUB036-B,,,,,PUB036-C,,,,
+PUB037,The Barrel Drop,,"7 Hurts Yard, NG1 6JD",52.9542,-1.1517,Monday to Sunday,14:00,14:00,,PUB037-A,Roof,,,,PUB037-B,Roof,,,,PUB037-C,Roof,,,
+PUB038,Johnson Arms,,"59 Abbey St, Dunkirk, NG7 2NZ",52.9379,-1.1768,Monday to Sunday,14:00,23:00,15/08/2026,PUB038-A,Large garden area,Well done adventurer ,8:55,14:30,PUB038-B,,,,,PUB038-C,,,,
+PUB039,The Boat Inn,,"Priory St, Lenton, NG7 2NX",52.9412,-1.1746,Monday to Sunday,14:00,14:00,,PUB039-A,Roof,,,,PUB039-B,Roof,,,,PUB039-C,Roof,,,
+PUB040,"Lakeside Arts - theatre, gallery & Pavilion Café",,"University Park, NG7 2RD",52.9378,-1.1942,Monday to Sunday,11:00,19:00,15/08/2026,PUB040-A,Courtyard ,Views not beer,11:40,18:08,PUB040-B,,,,,PUB040-C,,,,
+PUB041,Broadway Cinema,,"14-18 Broad St, NG1 3AL",52.9551,-1.1444,Monday to Sunday,11:00,23:00,15/08/2026,PUB041-A,Table in front of pub,,13:04,19:00,PUB041-B,Roof,,,,PUB041-C,Roof,,,
+PUB043,The Grosvenor,Bit rough,"293 Mansfield Rd, Carrington, NG5 2BY",52.9734,-1.1558,Monday to Sunday,11:00,23:00,15/08/2026,PUB043-A,Table in front of pub,,09:20,17:10,PUB043-B,Roof,,,,PUB043-C,Roof,,,
+PUB044,The Gladstone,,"45 Loscoe Rd, Carrington, NG5 2AW",52.9748,-1.1542,Monday to Sunday,14:00,22:00,15/08/2026,PUB044-A,Back Garden,,14:16,18:49,PUB044-B,,,,,PUB044-C,,,,
+PUB045,Duke Of Cambridge,,"548 Woodborough Rd, Mapperley, NG3 5FH",52.9765,-1.1362,Monday to Sunday,14:00,22:00,15/08/2026,PUB045-A,Terrace at back of pub,,11:09,17:18,PUB045-B,,,,,PUB045-C,,,,
+PUB046,The Robin Hood,,"161 Church St, Arnold, NG5 6ND",52.9998,-1.1312,Monday to Sunday,14:00,22:00,15/08/2026,PUB046-A,Beer Garden,,12:46,17:25,PUB046-B,Back Garden,Seating near the street,15:40,20:20,PUB046-C,,,,
+PUB047,Binks Yard,,"1 Island Quarter, Seely Rd, NG2 3BZ",52.9484,-1.1412,Tuesday to Sunday,14:00,22:00,15/08/2026,PUB047-A,Courtyard ,,09:03,13:02,PUB047-B,Courtyard ,,17:08,19:55,PUB047-C,,,,
+PUB048,The Lord Nelson,,"Lord Nelson St, Sneinton, NG2 4FJ",52.9508,-1.1278,Monday to Sunday,14:00,22:00,15/08/2026,PUB048-A,Beer Garden,,08:24,17:14,PUB048-B,,,,,PUB048-C,,,,
+PUB049,,,,,,,,,,,,,,,,,,,,,,,,
+
+
+Lists: Table 1
+Spot Types,,Opening Hours,,Opening Times Presets
+Garden,,00:00,,Varies / check venue
+Rooftop,,01:00,,12:00–23:00
+Roof garden,,02:00,,12:00–00:00
+Window seat,,03:00,,12:00–01:00
+Seat,,04:00,,11:00–23:00
+Bench,,05:00,,11:00–00:00
+Patio,,06:00,,10:00–22:00
+Front,,07:00,,10:00–23:00
+Side,,08:00,,09:00–17:00
+Back,,09:00,,09:00–22:00
+Street,,10:00,,09:00–23:00
+Canal,,11:00,,08:00–18:00
+Other,,12:00,,08:00–20:00
+,,13:00,,
+,,14:00,,
+,,15:00,,
+,,16:00,,
+,,17:00,,
+,,18:00,,
+,,19:00,,
+,,20:00,,
+,,21:00,,
+,,22:00,,
+,,23:00,,
+,,24:00,,
+,,01:00 (next day),,
+,,02:00 (next day),,
