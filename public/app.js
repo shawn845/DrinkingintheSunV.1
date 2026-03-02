@@ -1,1376 +1,967 @@
-/* Drinking in the Sun — LIVE (next 2 hours)
-   - Loads pubs + spot in/out from CSV: ./public/data/DrinkingintheSunData.csv
-   - Model A: calibration date (8 Aug) -> az/alt edge line -> recalculates for today
-   - Shows 2 plan cards + ALWAYS 5 options
-   - Weather shown as WMO icons (Open-Meteo weather_code)
-   - Map pin tap opens bottom-sheet pub card (weather + sit + sun line + open/close)
-*/
+// Drinking in the Sun — GitHub Pages PWA
+// CSV sun spots calibrated for 2026-08-15; we adjust to chosen date via sun-position matching.
+// Weather uses next hour only (Open-Meteo).
 
-const NOTTINGHAM_CENTER = { lat: 52.9548, lng: -1.1581 };
-const HORIZON_MIN = 120;
-const STEP_MIN = 5;
-const SWITCH_GAP_MIN = 5;
-
-const CALIBRATION_DATE = { y: 2026, m: 8, d: 8 }; // 8 Aug 2026
-
-const PERFECT_DAY = {
-  endHourLocal: 20,
-  minStopMin: 35,
-  maxStopMin: 75,
-  bufferMin: 5,
-  maxWaitMin: 25,
-  walkMaxKm: 2.2,
-  cycleMaxKm: 7.5,
-  cycleKmh: 15
+const CONFIG = {
+  DATA_URL: "./public/data/sunspots.csv",
+  BASE_CAL_DATE: "2026-08-15",
+  DEFAULT_CENTER: { lat: 52.9548, lon: -1.1581 }, // Nottingham
+  MAX_RESULTS_RAIL: 50
 };
 
-// ---------- DOM ----------
-const el = {
-  nearBtn: document.getElementById('nearBtn'),
-  nearBtnText: document.getElementById('nearBtnText'),
-  louBtn: document.getElementById('louBtn'),
-  favToggleBtn: document.getElementById('favToggleBtn'),
-  favToggleText: document.getElementById('favToggleText'),
-  viewToggleBtn: document.getElementById('viewToggleBtn'),
-  viewToggleText: document.getElementById('viewToggleText'),
+/* -------------------------- Small utilities -------------------------- */
+const $ = (id) => document.getElementById(id);
 
-  listPanel: document.getElementById('listPanel'),
-  mapPanel: document.getElementById('mapPanel'),
-
-  planMeta: document.getElementById('planMeta'),
-  planRefresh: document.getElementById('planRefresh'),
-
-  plan: document.getElementById('plan'),
-  results: document.getElementById('results'),
-
-  nextSunInline: document.getElementById('nextSunInline'),
-  nextSunText: document.getElementById('nextSunText'),
-
-  mapCard: document.getElementById('mapCard'),
-
-  louOverlay: document.getElementById('louOverlay'),
-  louBackdrop: document.getElementById('louBackdrop'),
-  louClose: document.getElementById('louClose'),
-  louOut: document.getElementById('louOut'),
-  louBuild: document.getElementById('louBuild'),
-  louStart: document.getElementById('louStart'),
-  louStops: document.getElementById('louStops'),
-  modeWalk: document.getElementById('modeWalk'),
-  modeCycle: document.getElementById('modeCycle'),
-  louShare: document.getElementById('louShare'),
-  louCopy: document.getElementById('louCopy')
-};
-
-// ---------- Storage helpers ----------
-function loadStr(k, fallback){ try { return localStorage.getItem(k) ?? fallback; } catch { return fallback; } }
-function saveStr(k,v){ try { localStorage.setItem(k, v); } catch {} }
-function loadBool(k, fallback){ try { const v = localStorage.getItem(k); return v === null ? fallback : (v === '1'); } catch { return fallback; } }
-function saveBool(k,v){ try { localStorage.setItem(k, v ? '1' : '0'); } catch {} }
-function loadJSON(k, fallback){ try { return JSON.parse(localStorage.getItem(k) || 'null') ?? fallback; } catch { return fallback; } }
-function saveJSON(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
-
-// ---------- State ----------
-let userLoc = loadJSON('ditS_userLoc', null);
-let viewMode = loadStr('ditS_viewMode', 'list');
-let favOnly = loadBool('ditS_favOnly', false);
-let favourites = new Set(loadJSON('ditS_favourites', []));
-let louMode = 'walk';
-
-let map = null;
-const markers = new Map();
-let lastRenderToken = 0;
-
-let PUBS = [];
-
-// Next-sun daily forecast cache
-let nextSunCache = { t: 0, msg: 'Checking forecast…' };
-const NEXTSUN_TTL_MS = 60 * 60 * 1000;
-
-// Windows cache
-const windowsCache = new Map(); // key = pubId|spotName|YYYY-MM-DD|profileHash
-
-// Weather cache
-const WEATHER_TTL_MS = 30 * 60 * 1000;
-const weatherCache = new Map(); // key -> {t,data}
-
-// ---------- Helpers ----------
-function pad2(n){ return String(n).padStart(2,'0'); }
-function fmtHM(d){ return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
-function minsBetween(a,b){ return Math.max(0, Math.round((b - a) / 60000)); }
-function addMinutes(d, m){ return new Date(d.getTime() + m*60*1000); }
-function addDays(d, days){ return new Date(d.getTime() + days*24*60*60*1000); }
-function escapeHtml(s){
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+function pad2(n){ return String(n).padStart(2,"0"); }
+function todayISO(){
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 }
-function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
-function normName(s){ return String(s||'').toLowerCase(); }
-function isoDateLocal(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function toLocalTimeBadge(){
+  const d = new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function minutesToHHMM(min){
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+function hhmmToMinutes(hhmm){
+  const [h,m] = hhmm.split(":").map(Number);
+  return h*60 + m;
+}
 
-// ---------- Distance ----------
-function haversineKm(a, b){
+// Haversine km
+function distKm(aLat,aLon,bLat,bLon){
   const R = 6371;
-  const toRad = (x) => x * Math.PI/180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
+  const dLat = (bLat-aLat) * Math.PI/180;
+  const dLon = (bLon-aLon) * Math.PI/180;
   const s1 = Math.sin(dLat/2);
-  const s2 = Math.sin(dLng/2);
-  const q = s1*s1 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*s2*s2;
-  return 2*R*Math.asin(Math.min(1, Math.sqrt(q)));
-}
-function walkMinutesFromKm(km){ return Math.max(1, Math.round(km / 4.8 * 60)); }
-function cycleMinutesFromKm(km){ return Math.max(1, Math.round(km / PERFECT_DAY.cycleKmh * 60)); }
-
-// ---------- Cycling “wide-afield” bias ----------
-function cycleWideBonus(pub){
-  const n = normName(pub.name);
-  const a = normName(pub.area);
-
-  const named =
-    (n.includes('lakeside') || a.includes('lakeside')) ? 30 :
-    (n.includes('beeston')  || a.includes('beeston'))  ? 25 :
-    (n.includes('basford')  || a.includes('basford'))  ? 20 :
-    (n.includes('lion at basford') || n.includes('lion at baseford')) ? 25 : 0;
-
-  const kmFromCenter = haversineKm(
-    { lat: NOTTINGHAM_CENTER.lat, lng: NOTTINGHAM_CENTER.lng },
-    { lat: pub.lat, lng: pub.lng }
-  );
-
-  const dist =
-    kmFromCenter >= 6 ? 18 :
-    kmFromCenter >= 4 ? 12 :
-    kmFromCenter >= 3 ? 8  : 0;
-
-  return named + dist;
+  const s2 = Math.sin(dLon/2);
+  const aa = s1*s1 + Math.cos(aLat*Math.PI/180)*Math.cos(bLat*Math.PI/180)*s2*s2;
+  return 2*R*Math.asin(Math.sqrt(aa));
 }
 
-// ---------- Opening/closing ----------
-function toTimeHHMM(s){
-  const t = String(s ?? '').trim();
-  if (!t) return null;
-  if (/^\d{1,2}\.\d{2}$/.test(t)){
-    const [h,m] = t.split('.');
-    return `${pad2(+h)}:${m}`;
-  }
-  if (/^\d{1,2}:\d{1,2}$/.test(t)){
-    const [h,m] = t.split(':');
-    return `${pad2(+h)}:${pad2(+m)}`;
-  }
-  if (/^\d{3,4}$/.test(t)){
-    const tt = t.padStart(4,'0');
-    return `${tt.slice(0,2)}:${tt.slice(2)}`;
-  }
-  return t;
-}
-function parseOpenClose(pub){
-  const open = pub.openingTime ? toTimeHHMM(pub.openingTime) : null;
-  const close = pub.closingTime ? toTimeHHMM(pub.closingTime) : null;
-  if (!open || !close) return null;
-  return { open, close };
-}
-function isOpenAt(pub, dateTime){
-  const oc = parseOpenClose(pub);
-  if (!oc) return { known:false, open:true, closesInMin:null };
+/* -------------------------- CSV parsing -------------------------- */
+function parseCSV(text){
+  const rows = [];
+  let i = 0, field = "", row = [], inQuotes = false;
 
-  const [oh, om] = oc.open.split(':').map(Number);
-  const [ch, cm] = oc.close.split(':').map(Number);
+  while (i < text.length){
+    const c = text[i];
 
-  const d = new Date(dateTime);
-  const openDT = new Date(d.getFullYear(), d.getMonth(), d.getDate(), oh, om, 0, 0);
-  let closeDT = new Date(d.getFullYear(), d.getMonth(), d.getDate(), ch, cm, 0, 0);
-  if (closeDT <= openDT) closeDT = addDays(closeDT, 1);
-
-  const isOpen = dateTime >= openDT && dateTime <= closeDT;
-  const closesInMin = isOpen ? minsBetween(dateTime, closeDT) : null;
-  return { known:true, open:isOpen, closesInMin };
-}
-function openLine(pub, now){
-  const st = isOpenAt(pub, now);
-  if (!st.known) return null;
-  if (!st.open) return 'Closed now';
-  if (st.closesInMin !== null && st.closesInMin <= 45) return `Open • closes in ${st.closesInMin} min`;
-  return `Open now`;
-}
-
-// ---------- Favourites ----------
-function setFavOnly(v){
-  favOnly = v;
-  saveBool('ditS_favOnly', v);
-  el.favToggleText.textContent = v ? 'Favourites ✓' : 'Favourites';
-  render();
-}
-el.favToggleBtn?.addEventListener('click', () => setFavOnly(!favOnly));
-
-function isFav(pubId){ return favourites.has(pubId); }
-function toggleFav(pubId){
-  if (favourites.has(pubId)) favourites.delete(pubId);
-  else favourites.add(pubId);
-  saveJSON('ditS_favourites', [...favourites]);
-  render();
-}
-
-// ---------- Location ----------
-function requestLocation(){
-  if (!navigator.geolocation) return;
-  el.nearBtnText.textContent = 'Locating…';
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      saveJSON('ditS_userLoc', userLoc);
-      el.nearBtnText.textContent = 'Near me';
-      render();
-    },
-    () => {
-      el.nearBtnText.textContent = 'Near me';
-      render();
-    },
-    { enableHighAccuracy:false, timeout:8000, maximumAge:5*60*1000 }
-  );
-}
-el.nearBtn?.addEventListener('click', requestLocation);
-
-// ---------- View toggle ----------
-function setView(mode){
-  viewMode = mode;
-  saveStr('ditS_viewMode', mode);
-
-  if (mode === 'list') {
-    el.mapPanel.style.display = 'none';
-    el.listPanel.style.display = '';
-    el.viewToggleText.textContent = 'Map';
-    hideMapCard();
-  } else {
-    el.mapPanel.style.display = '';
-    el.listPanel.style.display = 'none';
-    el.viewToggleText.textContent = 'List';
-    initMapOnce();
-    setTimeout(() => map?.invalidateSize(), 150);
-  }
-}
-el.viewToggleBtn?.addEventListener('click', () => setView(viewMode === 'list' ? 'map' : 'list'));
-
-// ---------- Sun helpers ----------
-function radToDeg(r){ return r * 180 / Math.PI; }
-function azimuthToBearingDeg(azRad){
-  const azDeg = azRad * 180 / Math.PI;
-  return (azDeg + 180 + 360) % 360;
-}
-function sunBearingAltitude(dateTime, lat, lng){
-  const pos = SunCalc.getPosition(dateTime, lat, lng);
-  return { bearing: azimuthToBearingDeg(pos.azimuth), alt: radToDeg(pos.altitude) };
-}
-function unwrapAzRange(azIn, azOut){
-  let a = azIn;
-  let b = azOut;
-  let d = b - a;
-  if (d > 180) b -= 360;
-  if (d < -180) b += 360;
-  if (b < a) [a, b] = [b, a];
-  return { a, b };
-}
-function unwrapAz(az, a){
-  let z = az;
-  while (z < a - 180) z += 360;
-  while (z > a + 180) z -= 360;
-  return z;
-}
-
-// ---------- Optional edge profile points ----------
-function profileHash(points){
-  if (!points || !points.length) return 'none';
-  return points.map(p => `${p.az.toFixed(2)}:${p.alt.toFixed(2)}`).join('|');
-}
-function requiredAltFromProfile(zUnwrapped, pointsUnwrapped){
-  if (pointsUnwrapped.length < 2) return null;
-  if (zUnwrapped <= pointsUnwrapped[0].az) return pointsUnwrapped[0].alt;
-  if (zUnwrapped >= pointsUnwrapped[pointsUnwrapped.length-1].az) return pointsUnwrapped[pointsUnwrapped.length-1].alt;
-
-  for (let i=0;i<pointsUnwrapped.length-1;i++){
-    const p0 = pointsUnwrapped[i];
-    const p1 = pointsUnwrapped[i+1];
-    if (zUnwrapped >= p0.az && zUnwrapped <= p1.az){
-      const span = (p1.az - p0.az);
-      const u = span <= 0.0001 ? 0 : (zUnwrapped - p0.az) / span;
-      return p0.alt + u * (p1.alt - p0.alt);
+    if (c === '"'){
+      if (inQuotes && text[i+1] === '"'){ field += '"'; i += 2; continue; }
+      inQuotes = !inQuotes; i++; continue;
     }
-  }
-  return null;
-}
-
-// ---------- Model A ----------
-function spotInSun_ModelA(pub, spot, dateTime){
-  if (!spot?.cal || !spot.cal.valid) return false;
-
-  const { bearing, alt } = sunBearingAltitude(dateTime, pub.lat, pub.lng);
-
-  const pts = spot.cal.profilePoints && spot.cal.profilePoints.length >= 2 ? spot.cal.profilePoints : null;
-  if (!pts){
-    const { a, b } = unwrapAzRange(spot.cal.azIn, spot.cal.azOut);
-    const z = unwrapAz(bearing, a);
-    if (z < a || z > b) return false;
-
-    const span = (b - a);
-    if (span <= 0.0001) return false;
-
-    const u = clamp((z - a) / span, 0, 1);
-    const requiredAlt = spot.cal.altIn + u * (spot.cal.altOut - spot.cal.altIn);
-    return alt >= requiredAlt;
-  }
-
-  const anchor = pts[0].az;
-  const ptsUnwrapped = pts.map(p => ({ az: unwrapAz(p.az, anchor), alt: p.alt })).sort((x,y) => x.az - y.az);
-  const z = unwrapAz(bearing, anchor);
-  const minAz = ptsUnwrapped[0].az;
-  const maxAz = ptsUnwrapped[ptsUnwrapped.length-1].az;
-  if (z < minAz || z > maxAz) return false;
-
-  const requiredAlt = requiredAltFromProfile(z, ptsUnwrapped);
-  if (requiredAlt === null) return false;
-  return alt >= requiredAlt;
-}
-
-// ---------- Window caching ----------
-function computeWindowsForDate(pub, spot, dayDate){
-  const dateKey = isoDateLocal(dayDate);
-  const pHash = profileHash(spot.cal.profilePoints || []);
-  const cacheKey = `${pub.id}|${spot.name}|${dateKey}|${pHash}`;
-  if (windowsCache.has(cacheKey)) return windowsCache.get(cacheKey);
-
-  const times = SunCalc.getTimes(dayDate, pub.lat, pub.lng);
-  let startDay = times.sunrise;
-  let endDay   = times.sunset;
-
-  if (!(startDay instanceof Date) || isNaN(startDay) || !(endDay instanceof Date) || isNaN(endDay) || endDay <= startDay){
-    startDay = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), 4, 0, 0, 0);
-    endDay   = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), 22, 0, 0, 0);
-  }
-
-  const windows = [];
-  let currentStart = null;
-
-  for (let t = new Date(startDay); t <= endDay; t = addMinutes(t, STEP_MIN)) {
-    const hit = spotInSun_ModelA(pub, spot, t);
-    if (hit && !currentStart) currentStart = new Date(t);
-    if (!hit && currentStart) {
-      windows.push({ start: currentStart, end: new Date(t) });
-      currentStart = null;
+    if (!inQuotes && (c === "," || c === "\n" || c === "\r")){
+      if (c === "\r" && text[i+1] === "\n"){ i++; }
+      row.push(field.trim());
+      field = "";
+      if (c === "\n" || c === "\r"){
+        if (row.some(x => x.length)) rows.push(row);
+        row = [];
+      }
+      i++; continue;
     }
+
+    field += c;
+    i++;
   }
-  if (currentStart) windows.push({ start: currentStart, end: new Date(endDay) });
+  row.push(field.trim());
+  if (row.some(x => x.length)) rows.push(row);
 
-  const out = windows.filter(w => (w.end - w.start) >= 10*60*1000);
-  windowsCache.set(cacheKey, out);
-  return out;
-}
-
-function sunStatusForPub(pub, now, horizonStart, horizonEnd){
-  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
-
-  const spotInfos = pub.spots.map(spot => {
-    const dayWindows = computeWindowsForDate(pub, spot, day);
-    const windows = dayWindows
-      .map(w => ({
-        start: w.start < horizonStart ? horizonStart : w.start,
-        end:   w.end   > horizonEnd   ? horizonEnd   : w.end
-      }))
-      .filter(w => w.end > w.start);
-    return { spot, windows };
+  if (!rows.length) return [];
+  const header = rows[0].map(h => h.trim());
+  const data = rows.slice(1).map(r => {
+    const o = {};
+    header.forEach((h, idx) => o[h] = (r[idx] ?? "").trim());
+    return o;
   });
-
-  const sunnyNow = [];
-  for (const si of spotInfos) {
-    const w = si.windows.find(w => now >= w.start && now <= w.end);
-    if (w) sunnyNow.push({ spot: si.spot, window: w });
-  }
-  if (sunnyNow.length) {
-    sunnyNow.sort((a,b) => b.window.end - a.window.end);
-    const best = sunnyNow[0];
-    return { kind:'sunny-now', spot: best.spot, start: best.window.start, end: best.window.end };
-  }
-
-  const nexts = [];
-  for (const si of spotInfos) {
-    const w = si.windows.find(w => w.start > now);
-    if (w) nexts.push({ spot: si.spot, window: w });
-  }
-  if (!nexts.length) return { kind:'no-sun' };
-
-  nexts.sort((a,b) => a.window.start - b.window.start);
-  const best = nexts[0];
-  return { kind:'next-sun', spot: best.spot, start: best.window.start, end: best.window.end };
-}
-
-// ---------- Weather (Open-Meteo) ----------
-function weatherKey(lat,lng){ return `${lat.toFixed(4)},${lng.toFixed(4)}`; }
-
-async function fetchWeather(lat, lng){
-  const url =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${lat}&longitude=${lng}` +
-    `&current=temperature_2m,cloud_cover,precipitation,precipitation_probability,wind_speed_10m,weather_code` +
-    `&hourly=temperature_2m,cloud_cover,precipitation_probability,wind_speed_10m,weather_code` +
-    `&forecast_days=1&timezone=auto&wind_speed_unit=mph`;
-  const res = await fetch(url, { cache:'no-store' });
-  if (!res.ok) throw new Error('weather fetch failed');
-  return res.json();
-}
-async function getWeather(lat,lng){
-  const key = weatherKey(lat,lng);
-  const now = Date.now();
-  const c = weatherCache.get(key);
-  if (c && (now - c.t) < WEATHER_TTL_MS) return c.data;
-  const data = await fetchWeather(lat,lng);
-  weatherCache.set(key, { t: now, data });
   return data;
 }
-function nearestHourlyIndex(times, targetDate){
-  const target = targetDate.getTime();
-  let bestI = 0, bestD = Infinity;
-  for (let i=0;i<times.length;i++){
-    const t = new Date(times[i]).getTime();
-    const d = Math.abs(t - target);
-    if (d < bestD){ bestD=d; bestI=i; }
+
+function pick(obj, keys){
+  for (const k of keys){
+    if (obj[k] != null && String(obj[k]).trim() !== "") return String(obj[k]).trim();
   }
-  return bestI;
+  return "";
 }
-async function runWithConcurrency(items, limit, fn){
-  const out = [];
-  let i = 0;
-  const workers = Array.from({ length: limit }, async () => {
-    while (i < items.length){
-      const idx = i++;
-      out[idx] = await fn(items[idx]);
+function toNum(x){
+  const n = Number(String(x).replace(/[^\d\.\-]/g,""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/* -------------------------- Sun position + adjustment -------------------------- */
+// Minimal SunCalc-style math (no dependencies)
+const RAD = Math.PI / 180;
+
+function toJulian(date) { return date.valueOf() / 86400000 - 0.5 + 2440588; }
+function toDays(date) { return toJulian(date) - 2451545; }
+
+function rightAscension(l, b) {
+  const e = RAD * 23.4397;
+  return Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l));
+}
+function declination(l, b) {
+  const e = RAD * 23.4397;
+  return Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l));
+}
+function solarMeanAnomaly(d) { return RAD * (357.5291 + 0.98560028 * d); }
+function eclipticLongitude(M) {
+  const C = RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+  const P = RAD * 102.9372;
+  return M + C + P + Math.PI;
+}
+function sunCoords(d) {
+  const M = solarMeanAnomaly(d);
+  const L = eclipticLongitude(M);
+  return { dec: declination(L, 0), ra: rightAscension(L, 0) };
+}
+function siderealTime(d, lw) { return RAD * (280.16 + 360.9856235 * d) - lw; }
+
+function sunPosition(date, lat, lon) {
+  const lw = RAD * -lon;
+  const phi = RAD * lat;
+  const d = toDays(date);
+  const c = sunCoords(d);
+  const H = siderealTime(d, lw) - c.ra;
+
+  const az = Math.atan2(
+    Math.sin(H),
+    Math.cos(H) * Math.sin(phi) - Math.tan(c.dec) * Math.cos(phi)
+  );
+  const alt = Math.asin(
+    Math.sin(phi) * Math.sin(c.dec) + Math.cos(phi) * Math.cos(c.dec) * Math.cos(H)
+  );
+  return { az, alt };
+}
+
+function wrapPi(x) {
+  x = (x + Math.PI) % (2 * Math.PI);
+  if (x < 0) x += 2 * Math.PI;
+  return x - Math.PI;
+}
+
+function bestMinuteForTarget(lat, lon, dateISO, targetAz, targetAlt) {
+  const day0 = new Date(`${dateISO}T00:00:00`);
+  let bestMinute = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let m = 0; m < 1440; m++) {
+    const t = new Date(day0.getTime() + m * 60000);
+    const { az, alt } = sunPosition(t, lat, lon);
+    if (alt <= 0) continue; // ignore sun below horizon
+
+    const da = wrapPi(az - targetAz);
+    const dh = alt - targetAlt;
+    const score = da * da + dh * dh;
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestMinute = m;
     }
-  });
-  await Promise.all(workers);
+  }
+  return { minute: bestMinute, score: bestScore };
+}
+
+function adjustWindowToDate(spot, targetDateISO) {
+  const baseDateISO = spot.baseDateISO || CONFIG.BASE_CAL_DATE;
+  const baseDay0 = new Date(`${baseDateISO}T00:00:00`);
+
+  const sMin = hhmmToMinutes(spot.baseStart);
+  const eMin = hhmmToMinutes(spot.baseEnd);
+
+  const baseStartDate = new Date(baseDay0.getTime() + sMin * 60000);
+  const baseEndDate = new Date(baseDay0.getTime() + eMin * 60000);
+
+  const startPos = sunPosition(baseStartDate, spot.lat, spot.lon);
+  const endPos = sunPosition(baseEndDate, spot.lat, spot.lon);
+
+  const sMatch = bestMinuteForTarget(spot.lat, spot.lon, targetDateISO, startPos.az, startPos.alt);
+  const eMatch = bestMinuteForTarget(spot.lat, spot.lon, targetDateISO, endPos.az, endPos.alt);
+
+  if (sMatch.minute == null || eMatch.minute == null) return null;
+
+  let s = sMatch.minute;
+  let e = eMatch.minute;
+  if (e <= s) return null;
+
+  return {
+    startMin: s,
+    endMin: e,
+    confidence: sMatch.score + eMatch.score
+  };
+}
+
+// overlap minutes between [aStart,aEnd] and [bStart,bEnd]
+function overlapMinutes(aStart, aEnd, bStart, bEnd){
+  const s = Math.max(aStart, bStart);
+  const e = Math.min(aEnd, bEnd);
+  return Math.max(0, e - s);
+}
+
+// sun % for "next hour starting at startMin"
+function sunPercentForNextHour(window, startMin){
+  const hourEnd = startMin + 60;
+  const ov = overlapMinutes(startMin, hourEnd, window.startMin, window.endMin);
+  return clamp(Math.round((ov / 60) * 100), 0, 100);
+}
+
+/* -------------------------- Weather (next hour only) -------------------------- */
+function wmoIcon(code){
+  // simple icon set
+  const sunSvg = `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3a1 1 0 0 1 1 1v1.1a7 7 0 0 1 5.9 5.9H20a1 1 0 1 1 0 2h-1.1A7 7 0 0 1 13 18.9V20a1 1 0 1 1-2 0v-1.1A7 7 0 0 1 5.1 13H4a1 1 0 1 1 0-2h1.1A7 7 0 0 1 11 5.1V4a1 1 0 0 1 1-1Zm0 4a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z" fill="currentColor"/></svg>`;
+  const cloudSvg = `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 18h10a4 4 0 0 0 .4-8A6 6 0 0 0 6.2 12 3.5 3.5 0 0 0 7 18Z" fill="currentColor"/></svg>`;
+  const rainSvg = `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 16h10a4 4 0 0 0 .4-8A6 6 0 0 0 6.2 10 3.5 3.5 0 0 0 7 16Zm2 5 1-3m4 3 1-3m4 3 1-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+  const boltSvg = `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M13 2 3 14h7l-1 8 12-14h-7l-1-6Z" fill="currentColor"/></svg>`;
+
+  if (code == null) return cloudSvg;
+
+  // WMO groups
+  if (code === 0) return sunSvg;
+  if ([1,2].includes(code)) return sunSvg;
+  if (code === 3) return cloudSvg;
+  if ([45,48].includes(code)) return cloudSvg;
+  if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) return rainSvg;
+  if ([71,73,75,77,85,86].includes(code)) return cloudSvg;
+  if ([95,96,99].includes(code)) return boltSvg;
+
+  return cloudSvg;
+}
+
+async function fetchNextHourWeather(lat, lon) {
+  const url =
+    "https://api.open-meteo.com/v1/forecast"
+    + `?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`
+    + "&hourly=weather_code,temperature_2m,precipitation_probability,precipitation,wind_speed_10m"
+    + "&forecast_hours=2"
+    + "&timezone=auto";
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Weather fetch failed: ${res.status}`);
+  const data = await res.json();
+
+  const now = new Date();
+  const times = data.hourly.time || [];
+  let i = times.findIndex(t => new Date(t) > now);
+  if (i < 0) i = 0;
+
+  return {
+    time: times[i],
+    weather_code: data.hourly.weather_code?.[i],
+    temp_c: data.hourly.temperature_2m?.[i],
+    wind_kmh: data.hourly.wind_speed_10m?.[i],
+    precip_mm: data.hourly.precipitation?.[i],
+    precip_prob: data.hourly.precipitation_probability?.[i]
+  };
+}
+
+/* -------------------------- App state -------------------------- */
+let rawRows = [];
+let spots = []; // normalized
+let userLoc = null;
+let filters = {
+  types: new Set(),
+  maxKm: 10,
+  sort: "sun" // "sun" | "dist"
+};
+let favorites = new Set(JSON.parse(localStorage.getItem("dits_favs") || "[]"));
+
+let selectedDateISO = todayISO();
+let selectedTimeMin = 900; // 15:00
+
+// Map
+let map = null;
+let mapMarkers = [];
+let mapReady = false;
+let lastMapSpots = [];
+
+// Detail
+let currentDetailSpot = null;
+
+/* -------------------------- Normalization -------------------------- */
+function normalizeRows(rows){
+  const out = [];
+
+  for (const r of rows){
+    const name = pick(r, ["pub_name","Pub","pub","name","Name","venue","Venue"]);
+    const address = pick(r, ["address","Address","location","Location","street","Street"]);
+    const postcode = pick(r, ["postcode","Postcode","post_code","Post Code","zip","Zip"]);
+    const spotName = pick(r, ["spot_name","Spot","spot","sun_spot","SunSpot","area_name"]);
+    const spotType = pick(r, ["spot_type","Type","type","category","Category"]);
+
+    const lat = toNum(pick(r, ["lat","Lat","latitude","Latitude"]));
+    const lon = toNum(pick(r, ["lon","Lon","lng","Lng","longitude","Longitude"]));
+
+    const baseStart = pick(r, ["base_start","BaseStart","start","Start","start_time","StartTime","baseStart"]);
+    const baseEnd   = pick(r, ["base_end","BaseEnd","end","End","end_time","EndTime","baseEnd"]);
+    const baseDateISO = pick(r, ["base_date","BaseDate","baseDateISO"]) || CONFIG.BASE_CAL_DATE;
+
+    const photo = pick(r, ["photo_url","Photo","photo","image","Image","img","Img"]);
+    const id = pick(r, ["id","ID"]) || `${name}__${spotName}__${lat},${lon}`.replace(/\s+/g,"_");
+
+    if (!name || lat == null || lon == null || !baseStart || !baseEnd) continue;
+
+    out.push({
+      id,
+      name,
+      address,
+      postcode,
+      spotName: spotName || "Spot",
+      spotType: spotType || "Spot",
+      lat, lon,
+      photo,
+      baseStart,
+      baseEnd,
+      baseDateISO
+    });
+  }
+
   return out;
 }
 
-// Weather code -> icon
-function wxIconFromCode(code, rainProb, precipNow){
-  if ((typeof precipNow === 'number' && precipNow > 0) || (typeof rainProb === 'number' && rainProb >= 60)) return '🌧';
-  if (code === 0) return '☀️';
-  if (code === 1) return '🌤';
-  if (code === 2) return '⛅';
-  if (code === 3) return '☁️';
-  if (code === 45 || code === 48) return '🌫';
-  if ([51,53,55,56,57].includes(code)) return '🌦';
-  if ([61,63,65,66,67,80,81,82].includes(code)) return '🌧';
-  if ([71,73,75,77,85,86].includes(code)) return '🌨';
-  if ([95,96,99].includes(code)) return '⛈';
-  return '⛅';
-}
-function wxModifierClass(wxIcon){
-  if (!wxIcon) return '';
-  if (wxIcon === '🌧' || wxIcon === '⛈' || wxIcon === '🌦' || wxIcon === '🌨') return 'wxRain';
-  if (wxIcon === '☁️' || wxIcon === '⛅' || wxIcon === '🌤' || wxIcon === '🌫') return 'wxMixed';
-  return '';
+/* -------------------------- Rendering helpers -------------------------- */
+function sunPillHTML(percent){
+  const icon = `<svg class="sunIcon" viewBox="0 0 24 24" width="18" height="18"><path d="M12 3a1 1 0 0 1 1 1v1.1a7 7 0 0 1 5.9 5.9H20a1 1 0 1 1 0 2h-1.1A7 7 0 0 1 13 18.9V20a1 1 0 1 1-2 0v-1.1A7 7 0 0 1 5.1 13H4a1 1 0 1 1 0-2h1.1A7 7 0 0 1 11 5.1V4a1 1 0 0 1 1-1Zm0 4a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z" fill="currentColor"/></svg>`;
+  return `${icon}<span>${percent}%</span>`;
 }
 
-// ---------- Sun tint ----------
-function sunValueToTintClass(effective, now){
-  if (!effective || effective.kind === 'no-sun') return 'cardTint0';
-
-  if (effective.kind === 'sunny-now'){
-    const left = Math.max(0, minsBetween(now, effective.end));
-    if (left >= 90) return 'cardTint4';
-    if (left >= 60) return 'cardTint3';
-    if (left >= 30) return 'cardTint2';
-    return 'cardTint1';
-  }
-  if (effective.kind === 'next-sun'){
-    const inMin = Math.max(0, minsBetween(now, effective.start));
-    if (inMin <= 10) return 'cardTint4';
-    if (inMin <= 25) return 'cardTint3';
-    if (inMin <= 45) return 'cardTint2';
-    return 'cardTint1';
-  }
-  return 'cardTint0';
+function shadePillHTML(){
+  return `<span>Shade</span>`;
 }
 
-// ---------- Copy lines ----------
-function sunLine(effective, now){
-  if (!effective || effective.kind === 'no-sun') return 'No sun in next 2 hours';
-  if (effective.kind === 'sunny-now') return `Sun now • until ${fmtHM(effective.end)} (${minsBetween(now, effective.end)} min)`;
-  if (effective.kind === 'next-sun') return `Next sun • ${fmtHM(effective.start)}–${fmtHM(effective.end)} (in ${minsBetween(now, effective.start)} min)`;
-  return 'No sun in next 2 hours';
+function fallbackPhoto(spot){
+  // clean neutral placeholder
+  const txt = encodeURIComponent(spot.name);
+  return `https://via.placeholder.com/600x400.png?text=${txt}`;
 }
 
-// ---------- Next sun in Nottingham ----------
-async function fetchNextSunDaily(){
-  const lat = NOTTINGHAM_CENTER.lat;
-  const lng = NOTTINGHAM_CENTER.lng;
-  const url =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${lat}&longitude=${lng}` +
-    `&daily=weather_code,precipitation_probability_max,cloud_cover_mean` +
-    `&forecast_days=7&timezone=auto`;
-  const res = await fetch(url, { cache:'no-store' });
-  if (!res.ok) throw new Error('daily forecast failed');
-  return res.json();
-}
-function isLikelySunnyDay(daily, i){
-  const rain = daily.precipitation_probability_max?.[i];
-  const cloud = daily.cloud_cover_mean?.[i];
-  if (typeof rain === 'number' && typeof cloud === 'number'){
-    return rain < 40 && cloud < 60;
-  }
-  const code = daily.weather_code?.[i];
-  if (typeof code === 'number'){
-    return code === 0 || code === 1 || code === 2;
-  }
-  return false;
-}
-function formatDayLabel(isoDateStr){
-  const d = new Date(isoDateStr + 'T12:00:00');
-  return d.toLocaleDateString(undefined, { weekday:'short', day:'2-digit', month:'short' });
-}
-async function updateNextSunCard(force=false){
-  const now = Date.now();
-  if (!force && (now - nextSunCache.t) < NEXTSUN_TTL_MS){
-    el.nextSunText.textContent = nextSunCache.msg;
-    return;
-  }
-  try{
-    el.nextSunText.textContent = 'Checking forecast…';
-    const data = await fetchNextSunDaily();
-    const daily = data.daily || {};
-    const days = daily.time || [];
-    let pick = null;
-    for (let i=0;i<days.length;i++){
-      if (isLikelySunnyDay(daily, i)){ pick = days[i]; break; }
-    }
-    if (!pick){
-      nextSunCache = { t: Date.now(), msg: 'No likely sunny day in the next 7 days (forecast).' };
-      el.nextSunText.textContent = nextSunCache.msg;
-      return;
-    }
-    const pickDate = new Date(pick + 'T12:00:00');
-    const nowDate = new Date();
-    const daysAway = Math.round((pickDate - new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate(), 12,0,0,0)) / (24*60*60*1000));
-    const label = formatDayLabel(pick);
-    const msg = daysAway <= 0 ? `Likely sun today (${label}).` : `Likely sun in ${daysAway} day${daysAway===1?'':'s'} (${label}).`;
-    nextSunCache = { t: Date.now(), msg };
-    el.nextSunText.textContent = msg;
-  } catch {
-    nextSunCache = { t: Date.now(), msg: 'Forecast unavailable.' };
-    el.nextSunText.textContent = nextSunCache.msg;
-  }
+function spotKey(spot){ return spot.id; }
+function isFav(spot){ return favorites.has(spotKey(spot)); }
+
+function saveFavs(){
+  localStorage.setItem("dits_favs", JSON.stringify([...favorites]));
 }
 
-// Refresh (clears caches and rerenders)
-el.planRefresh?.addEventListener('click', async () => {
-  weatherCache.clear();
-  windowsCache.clear();
-  nextSunCache.t = 0;
-  await render();
-});
-// ---------- Map ----------
-function initMapOnce(){
-  if (map) return;
-  if (!window.L) return;
+/* -------------------------- Core scoring -------------------------- */
+function computeMetricsForSpot(spot){
+  // Adjust window for selected date
+  const w = adjustWindowToDate(spot, selectedDateISO);
+  if (!w) return null;
 
-  map = L.map('map', { zoomControl:true }).setView([NOTTINGHAM_CENTER.lat, NOTTINGHAM_CENTER.lng], 14);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  PUBS.forEach(pub => {
-    const m = L.marker([pub.lat, pub.lng]).addTo(map);
-    markers.set(pub.id, m);
-    m.on('click', () => showMapCard(pub));
-  });
-
-  map.on('click', () => hideMapCard());
-}
-function directionsUrl(pub){
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pub.lat + ',' + pub.lng)}`;
-}
-
-function hideMapCard(){
-  if (!el.mapCard) return;
-  el.mapCard.style.display = 'none';
-  el.mapCard.innerHTML = '';
-}
-
-async function showMapCard(pub){
+  // "Now" scoring: next hour from current time
   const now = new Date();
-  const horizonStart = now;
-  const horizonEnd = addMinutes(now, HORIZON_MIN);
-  const baseLoc = userLoc || NOTTINGHAM_CENTER;
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const sunNow = sunPercentForNextHour(w, nowMin);
 
-  const distKm = haversineKm(baseLoc, { lat: pub.lat, lng: pub.lng });
-  const walkMin = walkMinutesFromKm(distKm);
+  // "Late sun" scoring: later end time today
+  const endMin = w.endMin;
 
-  const sun = sunStatusForPub(pub, now, horizonStart, horizonEnd);
-  const sit = sun?.spot?.name ? `Sit: ${sun.spot.name}` : 'Sit: —';
-  const sunTxt = sunLine(sun, now);
-  const openTxt = openLine(pub, now);
+  // Selected time scoring (detail slider)
+  const sunAtSel = sunPercentForNextHour(w, selectedTimeMin);
 
-  let icon = '⛅';
-  try{
-    const w = await getWeather(pub.lat, pub.lng);
-    if (w?.current){
-      icon = wxIconFromCode(w.current.weather_code, w.current.precipitation_probability, w.current.precipitation);
-    } else if (w?.hourly?.time?.length){
-      const i = nearestHourlyIndex(w.hourly.time, now);
-      icon = wxIconFromCode(w.hourly.weather_code[i], w.hourly.precipitation_probability[i], null);
-    }
-  } catch {}
-
-  el.mapCard.innerHTML = `
-    <div class="mapCardTop">
-      <div>
-        <div class="mapCardTitle">${escapeHtml(pub.name)}</div>
-        <div class="mapCardSub">${walkMin} min walk • ${escapeHtml(icon)}</div>
-      </div>
-      <button class="mapCardClose" type="button" aria-label="Close">✕</button>
-    </div>
-
-    <div class="mapCardRow">${escapeHtml(sit)}</div>
-    <div class="mapCardRow">${escapeHtml(sunTxt)}</div>
-    ${openTxt ? `<div class="mapCardRow">${escapeHtml(openTxt)}</div>` : ``}
-
-    <div class="mapCardActions">
-      <button class="smallBtn" type="button" data-act="directions">Directions</button>
-      <button class="smallBtn" type="button" data-act="open-in-list">Open in list</button>
-    </div>
-  `;
-
-  el.mapCard.style.display = '';
-
-  el.mapCard.querySelector('.mapCardClose')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    hideMapCard();
-  });
-
-  el.mapCard.querySelector('[data-act="directions"]')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.open(directionsUrl(pub), '_blank', 'noopener');
-  });
-
-  el.mapCard.querySelector('[data-act="open-in-list"]')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setView('list');
-    setTimeout(() => {
-      const node = document.querySelector(`[data-pub-card="${CSS.escape(pub.id)}"]`);
-      if (node) node.scrollIntoView({ behavior:'smooth', block:'start' });
-    }, 250);
-  });
+  return { window: w, sunNow, endMin, sunAtSel };
 }
 
-// ---------- Filtering ----------
-function shouldIncludePub(pub, now){
-  const st = isOpenAt(pub, now);
-  if (st.known && !st.open) return false;
-  if (favOnly && !isFav(pub.id)) return false;
+function passFilters(spot, km){
+  if (filters.types.size && !filters.types.has(spot.spotType)) return false;
+  if (km != null && km > filters.maxKm) return false;
   return true;
 }
 
-// ---------- Planner helpers ----------
-function pickBest(rows, now){
-  const candidates = rows.filter(r => r.effective.kind !== 'no-sun');
-  if (!candidates.length) return null;
-
-  candidates.sort((a,b) => {
-    const ra = a.effective.kind === 'sunny-now' ? 0 : 1;
-    const rb = b.effective.kind === 'sunny-now' ? 0 : 1;
-    if (ra !== rb) return ra - rb;
-
-    const ta = a.effective.kind === 'next-sun' ? (a.effective.start - now) : 0;
-    const tb = b.effective.kind === 'next-sun' ? (b.effective.start - now) : 0;
-    if (ta !== tb) return ta - tb;
-
-    return a.walkMin - b.walkMin;
-  });
-
-  return candidates[0];
-}
-
-function pickNextAfter(rows, pivotTime, excludeId, horizonStart, horizonEnd){
-  const t = addMinutes(pivotTime, SWITCH_GAP_MIN);
-  if (t > horizonEnd) return null;
-
-  const candidates = rows
-    .filter(r => r.pub.id !== excludeId)
-    .map(r => {
-      const sun = sunStatusForPub(r.pub, t, horizonStart, horizonEnd);
-      return { ...r, pivotNow: t, pivotSun: sun };
-    })
-    .filter(r => r.pivotSun.kind !== 'no-sun');
-
-  if (!candidates.length) return null;
-
-  candidates.sort((a,b) => {
-    const sa = a.pivotSun.kind === 'sunny-now' ? 0 : 1;
-    const sb = b.pivotSun.kind === 'sunny-now' ? 0 : 1;
-    if (sa !== sb) return sa - sb;
-
-    const ta = a.pivotSun.kind === 'next-sun' ? (a.pivotSun.start - t) : 0;
-    const tb = b.pivotSun.kind === 'next-sun' ? (b.pivotSun.start - t) : 0;
-    if (ta !== tb) return ta - tb;
-
-    return a.walkMin - b.walkMin;
-  });
-
-  return candidates[0];
-}
-
-// ---------- Render ----------
-async function render(){
-  const token = ++lastRenderToken;
-
-  if (!PUBS.length){
-    el.plan.innerHTML = `<div class="bigCard"><div class="bigTitle">Loading data…</div></div>`;
-    return;
-  }
-
-  const now = new Date();
-  const horizonStart = now;
-  const horizonEnd = addMinutes(now, HORIZON_MIN);
-  const baseLoc = userLoc || NOTTINGHAM_CENTER;
-
-  el.nearBtnText.textContent = 'Near me';
-  el.favToggleText.textContent = favOnly ? 'Favs ✓' : 'Favs';
-  if (el.planMeta) el.planMeta.textContent = `Updated ${fmtHM(now)} • next ${HORIZON_MIN} min`;
-
-  // Filter pubs early
-  const pubsFiltered = PUBS.filter(p => shouldIncludePub(p, now));
-
-  // Fetch weather for visible pubs (for icons)
-  const wxData = await runWithConcurrency(pubsFiltered, 4, async (p) => {
-    try { return { id: p.id, data: await getWeather(p.lat, p.lng) }; }
-    catch { return { id: p.id, data: null }; }
-  });
-  if (token !== lastRenderToken) return;
-  const wxById = new Map(wxData.map(x => [x.id, x.data]));
-
-  function weatherIconFor(pub, time){
-    const data = wxById.get(pub.id);
-    if (!data) return '⛅';
-    if (Math.abs(time.getTime() - Date.now()) < 90 * 60 * 1000 && data.current){
-      return wxIconFromCode(data.current.weather_code, data.current.precipitation_probability, data.current.precipitation);
-    }
-    const i = nearestHourlyIndex(data.hourly.time, time);
-    return wxIconFromCode(data.hourly.weather_code[i], data.hourly.precipitation_probability[i], null);
-  }
-
-  // Compute rows
-  let rows = pubsFiltered.map(pub => {
-    const distKm = haversineKm(baseLoc, { lat: pub.lat, lng: pub.lng });
-    const walkMin = walkMinutesFromKm(distKm);
-    const sun = sunStatusForPub(pub, now, horizonStart, horizonEnd);
-    const wxNow = weatherIconFor(pub, now);
-    const wxAtStart = (sun.kind === 'next-sun') ? weatherIconFor(pub, sun.start) : wxNow;
-    return {
-      pub, distKm, walkMin,
-      sun,
-      effective: { ...sun },
-      wxNow, wxAtStart
-    };
-  });
-
-  // Plan cards
-  const best1 = pickBest(rows, now);
-
-  const hasAnySunInHorizon = rows.some(r => (r.effective.kind === 'sunny-now' || r.effective.kind === 'next-sun'));
-  if (!hasAnySunInHorizon){
-    if (el.nextSunInline) el.nextSunInline.style.display = '';
-    await updateNextSunCard(false);
-  } else {
-    if (el.nextSunInline) el.nextSunInline.style.display = 'none';
-  }
-
-  const pivot = best1
-    ? (best1.effective.kind === 'sunny-now' ? best1.effective.end : best1.effective.start)
-    : null;
-
-  const best2 = (best1 && pivot) ? pickNextAfter(rows, pivot, best1.pub.id, horizonStart, horizonEnd) : null;
-
-  el.plan.innerHTML = '';
-  if (!best1) {
-    el.plan.insertAdjacentHTML('beforeend', `
-      <div class="bigCard">
-        <div class="bigTitle">No likely sun found</div>
-        <div class="mini">Within the next ${HORIZON_MIN} minutes.</div>
-      </div>
-    `);
-  } else {
-    el.plan.appendChild(buildPlanCard(best1, 1, now));
-    if (best2) el.plan.appendChild(buildPlanCard(best2, 2, now, best1));
-  }
-
-  // Options list: ALWAYS FIVE
-  const exclude = new Set([best1?.pub?.id, best2?.pub?.id].filter(Boolean));
-  const candidates = rows.filter(r => !exclude.has(r.pub.id));
-
-  function listRank(r){
-    if (r.effective.kind === 'sunny-now') return 0;
-    if (r.effective.kind === 'next-sun') return 1;
-    return 9; // no-sun
-  }
-
-  candidates.sort((a,b) => {
-    const ra = listRank(a);
-    const rb = listRank(b);
-    if (ra !== rb) return ra - rb;
-
-    if (ra === 1){
-      const ta = a.effective.start - now;
-      const tb = b.effective.start - now;
-      if (ta !== tb) return ta - tb;
-    }
-    return a.walkMin - b.walkMin;
-  });
-
-  const listFive = candidates.slice(0, 5);
-
-  el.results.innerHTML = '';
-  listFive.forEach(r => el.results.appendChild(buildListCard(r, now)));
-}
-
-function buildPlanCard(row, number, now, prevRow = null){
-  const { pub, walkMin, effective, wxNow, wxAtStart } = row;
-
-  const fav = isFav(pub.id);
-  const openTxt = openLine(pub, now);
-  const wxIcon = (effective.kind === 'next-sun') ? wxAtStart : wxNow;
-
-  const tint = sunValueToTintClass(effective, now);
-  const wxMod = wxModifierClass(wxIcon);
-
-  let headline = number === 1 ? '1. Best now' : '2. Next best';
-  let timeLine = '';
-  let rightLine = '';
-
-  if (effective.kind === 'sunny-now') {
-    timeLine = `${fmtHM(now)}–${fmtHM(effective.end)}`;
-    rightLine = `Shade in ${minsBetween(now, effective.end)} min`;
-  } else if (effective.kind === 'next-sun') {
-    timeLine = `${fmtHM(effective.start)}–${fmtHM(effective.end)}`;
-    rightLine = `Starts in ${minsBetween(now, effective.start)} min`;
-  } else {
-    timeLine = `Next ${HORIZON_MIN} min`;
-    rightLine = `No direct sun predicted`;
-  }
-
-  const spotLine = effective.spot?.name ? `Sit: ${effective.spot.name}` : 'Sit: —';
-  const sunTxt = sunLine(effective, now);
-
-  let leaveHint = '';
-  if (prevRow && number === 2 && effective.kind === 'next-sun') {
-    const leave = addMinutes(effective.start, -(walkMin + 2));
-    leaveHint = `Leave ~ ${fmtHM(leave)} to arrive for the start.`;
-  }
-
-  const card = document.createElement('div');
-  card.className = `bigCard ${number===1?'featured':(number===2?'featured2':'')} ${tint} ${wxMod}`;
-
-  card.innerHTML = `
-    <div class="bigTop">
-      <div>
-        <div class="bigTitle">${escapeHtml(headline)}</div>
-        <div class="bigSub"><strong>${escapeHtml(pub.name)}</strong> • ${walkMin} min walk</div>
-      </div>
-      <div style="display:flex; gap:8px; align-items:flex-start;">
-        <button class="starBtn ${fav ? 'on':''}" type="button" data-star="${escapeHtml(pub.id)}">${fav ? '★' : '☆'}</button>
-        <span class="badge wx">${escapeHtml(wxIcon)}</span>
-      </div>
-    </div>
-
-    <div class="bigBody">
-      <div class="rowLine"><span><strong>${escapeHtml(timeLine)}</strong></span><span>${escapeHtml(rightLine)}</span></div>
-      <div class="mini">${escapeHtml(spotLine)}</div>
-      <div class="mini">${escapeHtml(sunTxt)}</div>
-      ${openTxt ? `<div class="mini">${escapeHtml(openTxt)}</div>` : ``}
-      ${leaveHint ? `<div class="mini">${escapeHtml(leaveHint)}</div>` : ``}
-
-      <div class="actions">
-        <button class="actionBtn primary" type="button" data-act="directions">Directions</button>
-        <button class="actionBtn" type="button" data-act="map">Map</button>
-      </div>
-    </div>
-  `;
-
-  card.querySelector('[data-star]')?.addEventListener('click', (e) => { e.stopPropagation(); toggleFav(pub.id); });
-
-  card.querySelector('[data-act="directions"]').addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.open(directionsUrl(pub), '_blank', 'noopener');
-  });
-  card.querySelector('[data-act="map"]').addEventListener('click', (e) => {
-    e.stopPropagation();
-    setView('map');
-    initMapOnce();
-    map.setView([pub.lat, pub.lng], 16, { animate:true });
-    showMapCard(pub);
-  });
-
-  card.addEventListener('click', () => window.open(directionsUrl(pub), '_blank', 'noopener'));
-
-  return card;
-}
-
-function buildListCard(row, now){
-  const { pub, walkMin, effective, wxNow, wxAtStart } = row;
-
-  const fav = isFav(pub.id);
-  const openTxt = openLine(pub, now);
-  const wxIcon = (effective.kind === 'next-sun') ? wxAtStart : wxNow;
-
-  const tint = sunValueToTintClass(effective, now);
-  const wxMod = wxModifierClass(wxIcon);
-
-  const spotLine = effective.spot?.name ? `Sit: ${effective.spot.name}` : 'Sit: —';
-  const sunTxt = sunLine(effective, now);
-
-  const card = document.createElement('div');
-  card.className = `card ${tint} ${wxMod}`;
-  card.setAttribute('data-pub-card', pub.id);
-
-  card.innerHTML = `
-    <div class="cardTop">
-      <div>
-        <div class="cardTitle">${escapeHtml(pub.name)}</div>
-        <div class="cardSub">${walkMin} min walk</div>
-      </div>
-
-      <div style="display:flex; gap:8px; align-items:flex-start;">
-        <button class="starBtn ${fav ? 'on':''}" type="button" data-star="${escapeHtml(pub.id)}">${fav ? '★' : '☆'}</button>
-        <span class="badge wx">${escapeHtml(wxIcon)}</span>
-      </div>
-    </div>
-
-    <div class="cardBody">
-      <div class="mini">${escapeHtml(spotLine)}</div>
-      <div class="mini">${escapeHtml(sunTxt)}</div>
-      ${openTxt ? `<div class="mini">${escapeHtml(openTxt)}</div>` : ``}
-
-      <div class="cardActions">
-        <button class="smallBtn" type="button" data-act="directions">Directions</button>
-        <button class="smallBtn" type="button" data-act="map">Map</button>
-      </div>
-    </div>
-  `;
-
-  card.querySelector('[data-star]')?.addEventListener('click', (e) => { e.stopPropagation(); toggleFav(pub.id); });
-
-  card.querySelector('[data-act="directions"]').addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.open(directionsUrl(pub), '_blank', 'noopener');
-  });
-  card.querySelector('[data-act="map"]').addEventListener('click', (e) => {
-    e.stopPropagation();
-    setView('map');
-    initMapOnce();
-    map.setView([pub.lat, pub.lng], 16, { animate:true });
-    showMapCard(pub);
-  });
-
-  card.addEventListener('click', () => window.open(directionsUrl(pub), '_blank', 'noopener'));
-  return card;
-}
-
-// ---------- Lou Reed overlay ----------
-function openLou(){
-  el.louOverlay.style.display = '';
-  el.louOverlay.setAttribute('aria-hidden', 'false');
-  el.louOut.innerHTML = '';
-  el.louShare.disabled = true;
-  el.louCopy.disabled = true;
-}
-function closeLou(){
-  el.louOverlay.style.display = 'none';
-  el.louOverlay.setAttribute('aria-hidden', 'true');
-}
-el.louBtn?.addEventListener('click', () => openLou());
-el.louClose?.addEventListener('click', () => closeLou());
-el.louBackdrop?.addEventListener('click', () => closeLou());
-
-function setLouMode(mode){
-  louMode = mode;
-  el.modeWalk.classList.toggle('active', mode === 'walk');
-  el.modeCycle.classList.toggle('active', mode === 'cycle');
-}
-el.modeWalk?.addEventListener('click', () => setLouMode('walk'));
-el.modeCycle?.addEventListener('click', () => setLouMode('cycle'));
-
-function timeTodayFromHHMM(hhmm){
-  const [hh, mm] = hhmm.split(':').map(n => +n);
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
-}
-
-function bestSunWindowForPubInRange(pub, arriveTime, endTime){
-  const day = new Date(arriveTime.getFullYear(), arriveTime.getMonth(), arriveTime.getDate(), 12, 0, 0, 0);
-  let best = null;
-
-  for (const spot of pub.spots){
-    const wins = computeWindowsForDate(pub, spot, day);
-    for (const w of wins){
-      if (w.end <= arriveTime) continue;
-
-      const start = w.start < arriveTime ? arriveTime : w.start;
-      const end = w.end > endTime ? endTime : w.end;
-      if (end <= start) continue;
-
-      const waitMin = Math.max(0, minsBetween(arriveTime, start));
-      const durMin = Math.max(0, minsBetween(start, end));
-
-      const candidate = { spot, start, end, waitMin, durMin };
-      if (!best) best = candidate;
-      else {
-        if (candidate.waitMin < best.waitMin) best = candidate;
-        else if (candidate.waitMin === best.waitMin && candidate.durMin > best.durMin) best = candidate;
-      }
+/* -------------------------- UI build -------------------------- */
+function buildChips(){
+  const types = [...new Set(spots.map(s => s.spotType))].sort((a,b)=>a.localeCompare(b));
+  const chipRow = $("chipRow");
+  chipRow.innerHTML = "";
+
+  // Always show a few "nice" chips first if present
+  const preferred = ["Beer Garden","Beer Gardens","Courtyard","Courtyards","Pavement","Roof","Terrace"];
+  const ordered = [];
+  for (const p of preferred){
+    for (const t of types){
+      if (t.toLowerCase() === p.toLowerCase() && !ordered.includes(t)) ordered.push(t);
     }
   }
-  return best;
-}
-
-function makeShareText(stops, modeLabel, startTime){
-  const lines = [];
-  lines.push(`Perfect Day (${modeLabel}) — start ${fmtHM(startTime)}`);
-  lines.push('');
-  stops.forEach((s, idx) => {
-    lines.push(`${idx+1}. ${s.pub.name} — arrive ${fmtHM(s.arrive)} | sun ${fmtHM(s.start)}–${fmtHM(s.leave)} | spot: ${s.spot?.name || '—'}`);
-    lines.push(`   ${directionsUrl(s.pub)}`);
-  });
-  return lines.join('\n');
-}
-
-async function buildPerfectDayPlan(){
-  if (!PUBS.length){
-    el.louOut.innerHTML = `<div class="mini">Data not loaded yet.</div>`;
-    return;
+  for (const t of types){
+    if (!ordered.includes(t)) ordered.push(t);
   }
 
-  const startTime = timeTodayFromHHMM(el.louStart.value || '12:00');
-  const stopCount = parseInt(el.louStops.value || '5', 10);
-  const planEnd = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate(), PERFECT_DAY.endHourLocal, 0, 0, 0);
-
-  const baseStartLoc = userLoc || NOTTINGHAM_CENTER;
-  let currentLoc = { ...baseStartLoc };
-  let t = new Date(startTime);
-  const visited = new Set();
-
-  const pubsForPlan = PUBS.filter(p => shouldIncludePub(p, startTime));
-  const out = [];
-
-  for (let i=0; i<stopCount; i++){
-    if (t >= planEnd) break;
-
-    const candidates = pubsForPlan
-      .filter(p => !visited.has(p.id))
-      .map(p => {
-        const km = haversineKm(currentLoc, { lat: p.lat, lng: p.lng });
-        const travelMin = louMode === 'cycle' ? cycleMinutesFromKm(km) : walkMinutesFromKm(km);
-        return { pub: p, km, travelMin };
-      })
-      .filter(x => x.km <= (louMode === 'cycle' ? PERFECT_DAY.cycleMaxKm : PERFECT_DAY.walkMaxKm))
-      .slice(0, 70);
-
-    let bestPick = null;
-
-    for (const c of candidates){
-      const arrive = addMinutes(t, c.travelMin);
-      if (arrive >= planEnd) continue;
-
-      const openState = isOpenAt(c.pub, arrive);
-      if (openState.known && !openState.open) continue;
-
-      const win = bestSunWindowForPubInRange(c.pub, arrive, planEnd);
-      if (!win) continue;
-      if (win.waitMin > PERFECT_DAY.maxWaitMin) continue;
-
-      const wideBonus = (louMode === 'cycle') ? cycleWideBonus(c.pub) : 0;
-
-      const score =
-        (win.waitMin * 3) +
-        (c.travelMin * 1.5) -
-        (win.durMin * 2) -
-        wideBonus;
-
-      if (!bestPick || score < bestPick.score){
-        bestPick = { ...c, win, score };
-      }
-    }
-
-    if (!bestPick) break;
-
-    const arrive = addMinutes(t, bestPick.travelMin);
-    const start = bestPick.win.start;
-    const endMaxStay = addMinutes(start, PERFECT_DAY.maxStopMin);
-
-    let leave = bestPick.win.end;
-    leave = (leave > endMaxStay) ? endMaxStay : leave;
-    if (leave <= start) break;
-
-    out.push({
-      pub: bestPick.pub,
-      km: bestPick.km,
-      travelMin: bestPick.travelMin,
-      arrive,
-      start,
-      leave,
-      spot: bestPick.win.spot
+  for (const t of ordered.slice(0, 12)){
+    const btn = document.createElement("button");
+    btn.className = "chip";
+    btn.innerHTML = `<span class="chipIcon" aria-hidden="true">🍺</span><span>${t}</span>`;
+    btn.addEventListener("click", () => {
+      if (filters.types.has(t)) filters.types.delete(t);
+      else filters.types.add(t);
+      syncChipActive();
+      renderAll();
     });
+    btn.dataset.type = t;
+    chipRow.appendChild(btn);
+  }
+  syncChipActive();
+}
 
-    visited.add(bestPick.pub.id);
-    currentLoc = { lat: bestPick.pub.lat, lng: bestPick.pub.lng };
-    t = addMinutes(leave, PERFECT_DAY.bufferMin);
+function syncChipActive(){
+  const chips = $("chipRow").querySelectorAll(".chip");
+  chips.forEach(ch => {
+    const t = ch.dataset.type;
+    ch.classList.toggle("active", filters.types.has(t));
+  });
+}
+
+function buildFilterSheet(){
+  const types = [...new Set(spots.map(s => s.spotType))].sort((a,b)=>a.localeCompare(b));
+  const box = $("typeMulti");
+  box.innerHTML = "";
+
+  for (const t of types){
+    const b = document.createElement("button");
+    b.className = "multiOpt";
+    b.textContent = t;
+    b.dataset.type = t;
+    b.classList.toggle("active", filters.types.has(t));
+    b.addEventListener("click", () => {
+      if (filters.types.has(t)) filters.types.delete(t);
+      else filters.types.add(t);
+      b.classList.toggle("active", filters.types.has(t));
+    });
+    box.appendChild(b);
   }
 
-  if (!out.length){
-    el.louOut.innerHTML = `<div class="mini">No workable sun-led route found (try cycling mode or a different start).</div>`;
-    el.louShare.disabled = true;
-    el.louCopy.disabled = true;
-    return;
+  $("distKm").value = String(filters.maxKm);
+  $("distVal").textContent = String(filters.maxKm);
+
+  $("sortSun").classList.toggle("active", filters.sort === "sun");
+  $("sortDist").classList.toggle("active", filters.sort === "dist");
+}
+
+function showSheet(){
+  buildFilterSheet();
+  $("sheetBackdrop").hidden = false;
+  $("sheet").hidden = false;
+}
+function hideSheet(){
+  $("sheetBackdrop").hidden = true;
+  $("sheet").hidden = true;
+  syncChipActive();
+}
+
+/* -------------------------- Render list/cards -------------------------- */
+function renderAll(){
+  $("timeBadge").textContent = toLocalTimeBadge();
+
+  const q = $("q").value.trim().toLowerCase();
+
+  const computed = [];
+  for (const s of spots){
+    // search filter
+    if (q){
+      const hay = `${s.name} ${s.address} ${s.postcode} ${s.spotName} ${s.spotType}`.toLowerCase();
+      if (!hay.includes(q)) continue;
+    }
+
+    const km = userLoc ? distKm(userLoc.lat, userLoc.lon, s.lat, s.lon) : null;
+    if (!passFilters(s, km)) continue;
+
+    const m = computeMetricsForSpot(s);
+    if (!m) continue;
+
+    computed.push({ spot:s, km, ...m });
   }
 
-  const modeLabel = louMode === 'cycle' ? 'Cycling' : 'Walking';
-  const shareText = makeShareText(out, modeLabel, startTime);
+  // Sort for list
+  computed.sort((a,b) => {
+    if (filters.sort === "dist"){
+      const da = a.km ?? 1e9;
+      const db = b.km ?? 1e9;
+      if (da !== db) return da - db;
+      return b.sunNow - a.sunNow;
+    }
+    // sun sort
+    if (b.sunNow !== a.sunNow) return b.sunNow - a.sunNow;
+    const da = a.km ?? 1e9;
+    const db = b.km ?? 1e9;
+    return da - db;
+  });
 
-  el.louShare.disabled = false;
-  el.louCopy.disabled = false;
+  $("countNote").textContent = `${computed.length} spots`;
 
-  el.louShare.onclick = async () => {
-    try{
-      if (navigator.share) await navigator.share({ title:'Perfect Day', text: shareText });
-      else await navigator.clipboard.writeText(shareText);
-    } catch {}
-  };
-  el.louCopy.onclick = async () => {
-    try{
-      await navigator.clipboard.writeText(shareText);
-      el.louCopy.textContent = 'Copied ✓';
-      setTimeout(() => (el.louCopy.textContent = 'Copy'), 1200);
-    } catch {}
-  };
+  // Rail: sunniest now
+  const nowRail = computed.slice(0, CONFIG.MAX_RESULTS_RAIL);
+  $("railNow").innerHTML = nowRail.map(x => cardHTML(x)).join("");
+  bindCardClicks($("railNow"), nowRail);
 
-  el.louOut.innerHTML = `
-    <div class="bigCard">
-      <div class="bigTitle">${escapeHtml(modeLabel)} Perfect Day</div>
-      <div class="mini">Start ${escapeHtml(fmtHM(startTime))} • Stops ${out.length}</div>
-    </div>
-    ${out.map((s, idx) => {
-      const gmaps = directionsUrl(s.pub);
-      const travelLabel = louMode === 'cycle' ? 'cycle' : 'walk';
-      const openTxt = openLine(s.pub, s.arrive);
+  // Rail: latest sun today (sort by endMin desc, then sunNow)
+  const late = [...computed].sort((a,b) => (b.endMin - a.endMin) || (b.sunNow - a.sunNow)).slice(0, CONFIG.MAX_RESULTS_RAIL);
+  $("railLate").innerHTML = late.map(x => cardHTML(x, { late:true })).join("");
+  bindCardClicks($("railLate"), late);
 
-      return `
-        <div class="card">
-          <div class="cardTop">
-            <div>
-              <div class="cardTitle">${idx+1}. ${escapeHtml(s.pub.name)}</div>
-              <div class="cardSub">${escapeHtml(fmtHM(s.arrive))} arrive • ${escapeHtml(fmtHM(s.start))} sun • ${escapeHtml(fmtHM(s.leave))} leave</div>
-            </div>
-          </div>
-          <div class="mini">Sit: ${escapeHtml(s.spot?.name || '—')}</div>
-          ${openTxt ? `<div class="mini">${escapeHtml(openTxt)}</div>` : ``}
-          <div class="mini">${escapeHtml(s.travelMin)} min ${escapeHtml(travelLabel)} • ${escapeHtml(s.km.toFixed(1))} km</div>
-          <div class="cardActions">
-            <button class="smallBtn" type="button" data-gmaps="${escapeHtml(gmaps)}">Directions</button>
-            <button class="smallBtn" type="button" data-map="${escapeHtml(s.pub.id)}">Map</button>
-          </div>
+  // All list
+  $("listAll").innerHTML = computed.map(x => rowHTML(x)).join("");
+  bindRowClicks($("listAll"), computed);
+
+  // Map view uses top items
+  lastMapSpots = computed.slice(0, 30);
+  if (mapReady) updateMapPins();
+
+  // Favs list
+  renderFavs();
+}
+
+function cardHTML(x, opts={}){
+  const s = x.spot;
+  const photo = s.photo || fallbackPhoto(s);
+  const pct = x.sunNow;
+
+  const addrLine = [s.postcode].filter(Boolean).join(" ");
+  const spotChip = `${s.spotType}`;
+
+  const lateLabel = opts.late ? `Late sun · ends ${minutesToHHMM(x.endMin)}` : `${pct}% next hour`;
+
+  return `
+    <div class="card" data-id="${escapeAttr(s.id)}" role="button" tabindex="0">
+      <div class="cardImg">
+        <img src="${escapeAttr(photo)}" alt="" loading="lazy" />
+        <div class="sunPill">${sunPillHTML(pct)}</div>
+      </div>
+      <div class="cardBody">
+        <h4 class="cardTitle">${escapeHTML(s.name)}</h4>
+        <div class="cardAddr">${escapeHTML(addrLine || s.address || "")}</div>
+        <div class="badgeRow">
+          <div class="badge">📍 <span>${escapeHTML(spotChip)}</span></div>
+          <div class="badge"><small>${escapeHTML(lateLabel)}</small></div>
         </div>
-      `;
-    }).join('')}
+      </div>
+      <div class="legend">
+        <span class="dotKey"><span class="dotSwatch good"></span> Good Sun</span>
+        <span class="dotKey"><span class="dotSwatch some"></span> Some Sun</span>
+        <span class="dotKey"><span class="dotSwatch shade"></span> Shade</span>
+      </div>
+    </div>
   `;
+}
 
-  el.louOut.querySelectorAll('[data-gmaps]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      window.open(btn.getAttribute('data-gmaps'), '_blank', 'noopener');
-    });
+function rowHTML(x){
+  const s = x.spot;
+  const photo = s.photo || fallbackPhoto(s);
+  const pct = x.sunNow;
+
+  const isShade = pct === 0;
+  const pillClass = isShade ? "miniPill shade" : "miniPill";
+
+  const distText = x.km == null ? "" : `${x.km.toFixed(1)} km`;
+  const windowText = `Sun ${minutesToHHMM(x.window.startMin)}–${minutesToHHMM(x.window.endMin)}`;
+
+  return `
+    <div class="row" data-id="${escapeAttr(s.id)}" role="button" tabindex="0">
+      <div class="thumb"><img src="${escapeAttr(photo)}" alt="" loading="lazy" /></div>
+      <div class="rowMain">
+        <div class="rowTitle">${escapeHTML(s.name)}</div>
+        <div class="rowSub">${escapeHTML(s.spotName)} · ${escapeHTML(s.spotType)}</div>
+        <div class="rowSub">${escapeHTML(windowText)}</div>
+      </div>
+      <div class="rowRight">
+        <div class="${pillClass}">${isShade ? shadePillHTML() : sunPillHTML(pct)}</div>
+        <div class="miniMeta">${escapeHTML(distText)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function bindCardClicks(container, arr){
+  container.querySelectorAll(".card").forEach(el => {
+    el.addEventListener("click", () => openDetailById(el.dataset.id, arr));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") openDetailById(el.dataset.id, arr); });
   });
-  el.louOut.querySelectorAll('[data-map]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = btn.getAttribute('data-map');
-      const pub = PUBS.find(p => p.id === id);
-      if (!pub) return;
-      closeLou();
-      setView('map');
-      initMapOnce();
-      map.setView([pub.lat, pub.lng], 16, { animate:true });
-      showMapCard(pub);
-    });
+}
+function bindRowClicks(container, arr){
+  container.querySelectorAll(".row").forEach(el => {
+    el.addEventListener("click", () => openDetailById(el.dataset.id, arr));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") openDetailById(el.dataset.id, arr); });
   });
 }
 
-el.louBuild?.addEventListener('click', () => {
-  el.louOut.innerHTML = `<div class="mini">Building plan…</div>`;
-  el.louShare.disabled = true;
-  el.louCopy.disabled = true;
-  buildPerfectDayPlan().catch(() => {
-    el.louOut.innerHTML = `<div class="mini">Could not build plan.</div>`;
-  });
-});
-
-// ---------- CSV loading + calibration ----------
-async function loadCsvText(){
-  const res = await fetch('./public/data/DrinkingintheSunData.csv', { cache:'no-store' });
-  if (!res.ok) throw new Error('Could not load CSV');
-  return res.text();
+function escapeHTML(s){
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
 }
-function parseCSVLine(line){
-  const out = [];
-  let cur = '';
-  let inQ = false;
-  for (let i=0;i<line.length;i++){
-    const ch = line[i];
-    if (ch === '"'){
-      if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
-      else inQ = !inQ;
-    } else if (ch === ',' && !inQ){
-      out.push(cur);
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out.map(s => s.trim());
+function escapeAttr(s){ return escapeHTML(s).replace(/"/g,"&quot;"); }
+
+/* -------------------------- Detail sheet -------------------------- */
+function showDetailSheet(){
+  $("detailBackdrop").hidden = false;
+  $("detailSheet").hidden = false;
 }
-function makeLocalDateTimeOnCalibration(hhmm){
-  const [hh, mm] = hhmm.split(':').map(n => +n);
-  return new Date(CALIBRATION_DATE.y, CALIBRATION_DATE.m - 1, CALIBRATION_DATE.d, hh, mm, 0, 0);
+function hideDetailSheet(){
+  $("detailBackdrop").hidden = true;
+  $("detailSheet").hidden = true;
+  currentDetailSpot = null;
 }
-function buildCalForSpot(pubLat, pubLng, sunIn, sunOut, profileTimesHHMM){
-  const inT = toTimeHHMM(sunIn);
-  const outT = toTimeHHMM(sunOut);
-  if (!inT || !outT) return { valid:false };
 
-  const dtIn = makeLocalDateTimeOnCalibration(inT);
-  const dtOut = makeLocalDateTimeOnCalibration(outT);
+function openDetailById(id, computedArr){
+  const found = computedArr.find(x => x.spot.id === id);
+  if (!found) return;
 
-  const pIn = sunBearingAltitude(dtIn, pubLat, pubLng);
-  const pOut = sunBearingAltitude(dtOut, pubLat, pubLng);
+  currentDetailSpot = found.spot;
 
-  const profilePoints = [];
-  for (const t of (profileTimesHHMM || [])){
-    const tt = toTimeHHMM(t);
-    if (!tt) continue;
-    const dt = makeLocalDateTimeOnCalibration(tt);
-    const p = sunBearingAltitude(dt, pubLat, pubLng);
-    profilePoints.push({ az: p.bearing, alt: p.alt });
-  }
+  $("dTitle").textContent = found.spot.name;
+  $("dAddr").textContent = found.spot.address || found.spot.postcode || "";
+  $("dSpot").textContent = `${found.spot.spotName} · ${found.spot.spotType}`;
 
-  let points = null;
-  if (profilePoints.length){
-    points = [{ az: pIn.bearing, alt: pIn.alt }, ...profilePoints, { az: pOut.bearing, alt: pOut.alt }];
-  }
+  // Set default slider to current time (rounded 5)
+  const now = new Date();
+  const nm = now.getHours()*60 + now.getMinutes();
+  selectedTimeMin = Math.round(nm / 5) * 5;
+  selectedTimeMin = clamp(selectedTimeMin, 540, 1380);
+  $("timeSlider").value = String(selectedTimeMin);
+  updateDetailForSelectedTime();
 
-  return {
-    valid:true,
-    azIn: pIn.bearing,
-    altIn: pIn.alt,
-    azOut: pOut.bearing,
-    altOut: pOut.alt,
-    inTime: inT,
-    outTime: outT,
-    profilePoints: points
+  // Buttons
+  $("dirBtn").onclick = () => {
+    const s = currentDetailSpot;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${s.lat},${s.lon}`)}&travelmode=walking`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
+
+  $("favBtn").onclick = () => {
+    const s = currentDetailSpot;
+    const k = spotKey(s);
+    if (favorites.has(k)) favorites.delete(k);
+    else favorites.add(k);
+    saveFavs();
+    updateFavBtn();
+    renderFavs();
+  };
+
+  updateFavBtn();
+  buildMiniBars();
+  showDetailSheet();
 }
-function getField(rec, ...names){
-  for (const n of names){
-    if (rec[n] !== undefined && rec[n] !== null && String(rec[n]).trim() !== '') return rec[n];
+
+function updateFavBtn(){
+  if (!currentDetailSpot) return;
+  const on = isFav(currentDetailSpot);
+  $("favBtn").textContent = on ? "Saved" : "Save";
+  $("favBtn").classList.toggle("primary", on);
+  $("favBtn").classList.toggle("ghost", !on);
+}
+
+function updateDetailForSelectedTime(){
+  if (!currentDetailSpot) return;
+
+  const s = currentDetailSpot;
+  const w = adjustWindowToDate(s, selectedDateISO);
+  const pill = $("dSunPill");
+
+  const selHH = minutesToHHMM(selectedTimeMin);
+  $("selTimePill").textContent = selHH;
+
+  if (!w){
+    pill.textContent = "No sun data";
+    return;
   }
-  return '';
-}
-function csvToPubs(csvText){
-  const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length);
-  const headerIdx = lines.findIndex(l => l.toLowerCase().startsWith('pub id,'));
-  if (headerIdx < 0) return [];
 
-  const header = parseCSVLine(lines[headerIdx]);
-  const rows = [];
-
-  for (let i=headerIdx+1;i<lines.length;i++){
-    const line = lines[i];
-    if (/^lists:/i.test(line)) break;
-    if (/^pubs:/i.test(line)) continue;
-
-    const cols = parseCSVLine(line);
-    if (cols.length < 6) continue;
-
-    const rec = {};
-    for (let c=0;c<header.length;c++){
-      rec[header[c]] = cols[c] ?? '';
-    }
-    if (String(rec['Pub ID']||'').trim().toUpperCase().startsWith('PUB') === false) continue;
-    rows.push(rec);
-  }
-
-  return rows.map(r => {
-    const lat = parseFloat(r['Latitude']);
-    const lng = parseFloat(r['Longitude']);
-    const id = String(r['Pub ID']).trim() || (String(r['Pub Name']).trim().toLowerCase().replace(/\W+/g,'-'));
-
-    const openingTime = getField(r, 'Opening Time', 'Opening', 'Open', 'Opens');
-    const closingTime = getField(r, 'Closing Time', 'Closing', 'Close', 'Closes');
-
-    const spots = [];
-    function profileCols(letter){
-      const arr = [];
-      for (let i=1;i<=6;i++){
-        const v = r[`Spot ${letter} Profile ${i}`];
-        if (v !== undefined && String(v).trim() !== '') arr.push(v);
-      }
-      return arr;
-    }
-    function addSpot(letter){
-      const type = String(r[`Spot ${letter} Type`] || '').trim();
-      const detail = String(r[`Spot ${letter} Detail`] || '').trim();
-      const sunIn = r[`Spot ${letter} Sun In`];
-      const sunOut = r[`Spot ${letter} Sun Out`];
-      if (!type && !detail) return;
-      if (!sunIn || !sunOut) return;
-
-      const name = detail ? `${type} — ${detail}` : type;
-      const cal = buildCalForSpot(lat, lng, sunIn, sunOut, profileCols(letter));
-      if (cal && cal.valid) spots.push({ name, type, detail, cal });
-    }
-    addSpot('A'); addSpot('B'); addSpot('C');
-
-    return {
-      id,
-      name: String(r['Pub Name']||'').trim(),
-      area: String(r['Address']||'').trim(),
-      lat, lng,
-      openingTime: String(openingTime||'').trim(),
-      closingTime: String(closingTime||'').trim(),
-      spots
-    };
-  })
-  .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  const pct = sunPercentForNextHour(w, selectedTimeMin);
+  pill.innerHTML = (pct === 0)
+    ? `<span>Shade next hour</span>`
+    : `${sunPillHTML(pct)} <span class="muted">in sun</span>`;
 }
 
-// ---------- Boot ----------
-async function boot(){
-  setView(viewMode);
-  setFavOnly(favOnly);
+function buildMiniBars(){
+  if (!currentDetailSpot) return;
+  const s = currentDetailSpot;
+  const w = adjustWindowToDate(s, selectedDateISO);
+  const box = $("miniBars");
+  box.innerHTML = "";
 
-  try{
-    const csvText = await loadCsvText();
-    PUBS = csvToPubs(csvText);
+  if (!w) return;
 
-    // Only keep pubs that actually have spot cal data
-    PUBS = PUBS.filter(p => Array.isArray(p.spots) && p.spots.length > 0);
-
-    if (viewMode === 'map') initMapOnce();
-
-    render();
-    setInterval(() => render(), 60 * 1000);
-  } catch {
-    el.plan.innerHTML = `
-      <div class="bigCard">
-        <div class="bigTitle">Data load failed</div>
-        <div class="mini">Ensure the CSV is at <strong>public/data/DrinkingintheSunData.csv</strong>.</div>
+  const hours = [12,13,14,15,16,17,18];
+  for (const h of hours){
+    const startMin = h*60;
+    const pct = sunPercentForNextHour(w, startMin);
+    const fillClass = pct >= 70 ? "good" : "";
+    box.innerHTML += `
+      <div class="bar">
+        <div class="barFill ${fillClass}" style="background:${pct===0 ? "var(--shade)" : "var(--good)"}">
+          ${pct}%
+        </div>
+        <div class="barLabel">${pad2(h)}:00</div>
       </div>
     `;
   }
 }
-boot();
+
+/* -------------------------- Favorites view -------------------------- */
+function renderFavs(){
+  const favList = $("listFavs");
+  const favSpots = spots.filter(s => favorites.has(spotKey(s)));
+
+  if (!favSpots.length){
+    favList.innerHTML = `<div class="muted">No saved spots yet.</div>`;
+    return;
+  }
+
+  // Compute with current filters (date + now) for display
+  const computed = [];
+  for (const s of favSpots){
+    const km = userLoc ? distKm(userLoc.lat, userLoc.lon, s.lat, s.lon) : null;
+    const m = computeMetricsForSpot(s);
+    if (!m) continue;
+    computed.push({ spot:s, km, ...m });
+  }
+  computed.sort((a,b)=> (b.sunNow - a.sunNow) || ((a.km??1e9)-(b.km??1e9)));
+
+  favList.innerHTML = computed.map(x => rowHTML(x)).join("");
+  bindRowClicks(favList, computed);
+}
+
+/* -------------------------- Weather strip render -------------------------- */
+async function renderWeather(){
+  const el = $("weatherStrip");
+  el.innerHTML = `<div class="muted">Loading weather…</div>`;
+
+  const loc = userLoc || CONFIG.DEFAULT_CENTER;
+
+  try{
+    const w = await fetchNextHourWeather(loc.lat, loc.lon);
+    const icon = wmoIcon(w.weather_code);
+    const t = (w.temp_c == null) ? "—" : `${Math.round(w.temp_c)}°C`;
+    const wind = (w.wind_kmh == null) ? "—" : `${Math.round(w.wind_kmh)} km/h`;
+    const rain = (w.precip_mm == null) ? "—" : `${Number(w.precip_mm).toFixed(1)} mm`;
+    const prob = (w.precip_prob == null) ? "—" : `${Math.round(w.precip_prob)}%`;
+
+    el.innerHTML = `
+      <div class="weatherLeft">
+        <div class="weatherIcon">${icon}</div>
+        <div class="weatherMain">
+          <div class="weatherTop">
+            <div class="weatherTemp">${t}</div>
+            <div class="weatherMeta">next hour</div>
+          </div>
+          <div class="weatherMeta">Wind ${wind} <span class="dot"></span> Rain ${prob}</div>
+        </div>
+      </div>
+      <div class="weatherRight">
+        <div>${rain}</div>
+      </div>
+    `;
+  } catch(e){
+    el.innerHTML = `<div class="muted">Weather unavailable</div>`;
+  }
+}
+
+/* -------------------------- Map view -------------------------- */
+function initMap(){
+  if (mapReady) return;
+  mapReady = true;
+
+  const center = userLoc || CONFIG.DEFAULT_CENTER;
+
+  map = L.map("map", { zoomControl: true }).setView([center.lat, center.lon], 13);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  updateMapPins();
+}
+
+function clearMapPins(){
+  for (const m of mapMarkers) m.remove();
+  mapMarkers = [];
+}
+
+function updateMapPins(){
+  if (!map) return;
+
+  clearMapPins();
+
+  const items = lastMapSpots || [];
+  const bounds = [];
+
+  for (const x of items){
+    const s = x.spot;
+    const pct = x.sunNow;
+    const marker = L.circleMarker([s.lat, s.lon], {
+      radius: 9,
+      weight: 2,
+      color: pct === 0 ? "#9a9aa0" : "#111",
+      fillColor: pct === 0 ? "#d8d8dc" : "#ffd400",
+      fillOpacity: 0.95
+    }).addTo(map);
+
+    marker.on("click", () => openDetailById(s.id, items));
+    mapMarkers.push(marker);
+    bounds.push([s.lat, s.lon]);
+  }
+
+  if (userLoc){
+    const u = L.circleMarker([userLoc.lat, userLoc.lon], {
+      radius: 7, weight: 2, color:"#0a66ff", fillColor:"#0a66ff", fillOpacity:0.4
+    }).addTo(map);
+    mapMarkers.push(u);
+  }
+
+  if (bounds.length){
+    try{ map.fitBounds(bounds, { padding:[30,30] }); } catch {}
+  }
+}
+
+/* -------------------------- Navigation -------------------------- */
+function setTab(tab){
+  // buttons
+  document.querySelectorAll(".navBtn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+
+  if (tab === "find") $("view-find").classList.add("active");
+  if (tab === "map") {
+    $("view-map").classList.add("active");
+    initMap();
+    setTimeout(() => { try{ map.invalidateSize(); } catch {} }, 150);
+  }
+  if (tab === "favs") $("view-favs").classList.add("active");
+}
+
+/* -------------------------- Geolocation -------------------------- */
+async function getUserLocation(){
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("No geolocation"));
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      (err) => reject(err),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  });
+}
+
+/* -------------------------- Load + init -------------------------- */
+async function loadData(){
+  const res = await fetch(CONFIG.DATA_URL, { cache: "no-store" });
+  if (!res.ok) throw new Error(`CSV fetch failed: ${res.status}`);
+  const text = await res.text();
+  rawRows = parseCSV(text);
+  spots = normalizeRows(rawRows);
+
+  // If CSV is empty / not matching expected columns, show a clear message in UI
+  if (!spots.length){
+    $("listAll").innerHTML = `<div class="muted">
+      No valid rows loaded from <code>${CONFIG.DATA_URL}</code>.<br/>
+      Your CSV must include: pub name + lat + lon + base_start + base_end (HH:MM).
+    </div>`;
+  }
+}
+
+function wireUI(){
+  // date default
+  $("datePick").value = selectedDateISO;
+  $("datePick").addEventListener("change", () => {
+    selectedDateISO = $("datePick").value || todayISO();
+    renderAll();
+    if (currentDetailSpot){
+      updateDetailForSelectedTime();
+      buildMiniBars();
+    }
+  });
+
+  $("q").addEventListener("input", () => renderAll());
+
+  // bottom nav
+  document.querySelectorAll(".navBtn").forEach(btn => {
+    btn.addEventListener("click", () => setTab(btn.dataset.tab));
+  });
+
+  // filters sheet
+  $("openFilters").addEventListener("click", showSheet);
+  $("closeFilters").addEventListener("click", hideSheet);
+  $("sheetBackdrop").addEventListener("click", hideSheet);
+
+  $("distKm").addEventListener("input", () => {
+    $("distVal").textContent = $("distKm").value;
+  });
+
+  $("sortSun").addEventListener("click", () => {
+    filters.sort = "sun";
+    $("sortSun").classList.add("active");
+    $("sortDist").classList.remove("active");
+  });
+  $("sortDist").addEventListener("click", () => {
+    filters.sort = "dist";
+    $("sortDist").classList.add("active");
+    $("sortSun").classList.remove("active");
+  });
+
+  $("resetFilters").addEventListener("click", () => {
+    filters.types.clear();
+    filters.maxKm = 10;
+    filters.sort = "sun";
+    buildFilterSheet();
+  });
+
+  $("applyFilters").addEventListener("click", () => {
+    filters.maxKm = Number($("distKm").value);
+    // types already updated in sheet; keep as-is
+    hideSheet();
+    renderAll();
+  });
+
+  // near me
+  $("nearMeBtn").addEventListener("click", async () => {
+    try{
+      userLoc = await getUserLocation();
+      await renderWeather();
+      renderAll();
+      if (mapReady){
+        map.setView([userLoc.lat, userLoc.lon], 14);
+        updateMapPins();
+      }
+    }catch{
+      // no prompt spam; just keep default center
+    }
+  });
+
+  // detail sheet
+  $("closeDetail").addEventListener("click", hideDetailSheet);
+  $("detailBackdrop").addEventListener("click", hideDetailSheet);
+
+  $("timeSlider").addEventListener("input", () => {
+    selectedTimeMin = Number($("timeSlider").value);
+    updateDetailForSelectedTime();
+  });
+}
+
+async function start(){
+  // SW
+  if ("serviceWorker" in navigator){
+    try{ await navigator.serviceWorker.register("./service-worker.js"); } catch {}
+  }
+
+  // time badge
+  $("timeBadge").textContent = toLocalTimeBadge();
+
+  // initial weather (default center)
+  await renderWeather();
+
+  // load data
+  await loadData();
+
+  // chips + filters
+  buildChips();
+
+  // UI listeners
+  wireUI();
+
+  // first render
+  renderAll();
+}
+
+start().catch((e) => {
+  console.error(e);
+  $("listAll").innerHTML = `<div class="muted">App failed to start.</div>`;
+});
