@@ -1,78 +1,84 @@
-const CACHE_VERSION = 'v17';
-const CACHE_NAME = `drinking-in-the-sun-${CACHE_VERSION}`;
-const RUNTIME = `drinking-in-the-sun-runtime-${CACHE_VERSION}`;
+// Simple PWA cache (GitHub Pages)
+const CACHE_VERSION = "v1";
+const CACHE_NAME = `dits-${CACHE_VERSION}`;
+const RUNTIME = `dits-rt-${CACHE_VERSION}`;
 
 const CORE = [
-  './',
-  './index.html',
-  './manifest.json',
-  './public/styles.css',
-  './public/app.js',
-  './public/icons/icon-192.png',
-  './public/icons/icon-512.png'
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./public/styles.css",
+  "./public/app.js",
+  "./public/data/sunspots.csv",
+  "./public/icons/icon-192.png",
+  "./public/icons/icon-512.png"
 ];
 
-self.addEventListener('install', (event) => {
+self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(CORE)));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((k) => (k !== CACHE_NAME && k !== RUNTIME ? caches.delete(k) : null)))
+    caches.keys().then(keys =>
+      Promise.all(keys.map(k => (k !== CACHE_NAME && k !== RUNTIME) ? caches.delete(k) : null))
     )
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Network-first for navigations
-  if (req.mode === 'navigate') {
+  // Network-first for HTML
+  if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
     event.respondWith((async () => {
       try {
         const fresh = await fetch(req);
-        const c = await caches.open(RUNTIME);
-        c.put(req, fresh.clone());
+        const cache = await caches.open(RUNTIME);
+        cache.put(req, fresh.clone());
         return fresh;
       } catch {
-        return (await caches.match(req)) || (await caches.match('./index.html'));
-      }
-    })());
-    return;
-  }
-
-  // Network-first for CSV data
-  if (url.origin === self.location.origin && url.pathname.endsWith('/public/data/DrinkingintheSunData.csv')) {
-    event.respondWith((async () => {
-      try {
-        const fresh = await fetch(req, { cache: 'no-store' });
-        const c = await caches.open(RUNTIME);
-        c.put(req, fresh.clone());
-        return fresh;
-      } catch {
-        return (await caches.match(req)) || new Response('', { status: 503 });
+        const cached = await caches.match(req);
+        return cached || caches.match("./index.html");
       }
     })());
     return;
   }
 
   // Cache-first for same-origin assets
-  if (url.origin === self.location.origin) {
+  if (url.origin === location.origin) {
     event.respondWith((async () => {
-      const hit = await caches.match(req);
-      if (hit) return hit;
+      const cached = await caches.match(req);
+      if (cached) return cached;
       const fresh = await fetch(req);
-      const c = await caches.open(RUNTIME);
-      c.put(req, fresh.clone());
+      const cache = await caches.open(RUNTIME);
+      cache.put(req, fresh.clone());
       return fresh;
     })());
     return;
   }
 
-  // Cross-origin: network best-effort
-  event.respondWith(fetch(req));
+  // Runtime cache for images + Open-Meteo
+  if (
+    req.destination === "image" ||
+    url.hostname.includes("open-meteo.com") ||
+    url.hostname.includes("tile.openstreetmap.org") ||
+    url.hostname.includes("unpkg.com")
+  ) {
+    event.respondWith((async () => {
+      const cached = await caches.match(req);
+      if (cached) return cached;
+      try {
+        const fresh = await fetch(req);
+        const cache = await caches.open(RUNTIME);
+        cache.put(req, fresh.clone());
+        return fresh;
+      } catch {
+        return cached || Response.error();
+      }
+    })());
+  }
 });
