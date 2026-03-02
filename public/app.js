@@ -42,9 +42,9 @@ const el = {
 
   plan: document.getElementById('plan'),
   results: document.getElementById('results'),
-
-  nextSunInline: document.getElementById('nextSunInline'),
-  nextSunText: document.getElementById('nextSunText'),
+  forecastStrip: document.getElementById('forecastStrip'),
+  forecastIcon: document.getElementById('forecastIcon'),
+  forecastText: document.getElementById('forecastText'),
 
   mapCard: document.getElementById('mapCard'),
 
@@ -81,10 +81,6 @@ const markers = new Map();
 let lastRenderToken = 0;
 
 let PUBS = [];
-
-// Next-sun daily forecast cache
-let nextSunCache = { t: 0, msg: 'Checking forecast…' };
-const NEXTSUN_TTL_MS = 60 * 60 * 1000;
 
 // Windows cache
 const windowsCache = new Map(); // key = pubId|spotName|YYYY-MM-DD|profileHash
@@ -467,6 +463,65 @@ function wxModifierClass(wxIcon){
   return '';
 }
 
+function forecastMoodClass(icon, code){
+  // Use icon first (already accounts for rain probability), fall back to WMO code
+  if (icon === '⛈' || icon === '🌧' || icon === '🌦') return 'moodRain';
+  if (icon === '🌨') return 'moodSnow';
+  if (icon === '🌫' || code === 45 || code === 48) return 'moodFog';
+  if (icon === '☁️' || icon === '⛅' || icon === '🌤') return 'moodMixed';
+  if (icon === '☀️') return 'moodSun';
+  return 'moodMixed';
+}
+
+async function updateForecastStrip(baseLoc, nowDate){
+  if (!el.forecastStrip) return;
+  try{
+    const data = await getWeather(baseLoc.lat, baseLoc.lng);
+    const nextHour = new Date(nowDate);
+    nextHour.setMinutes(0,0,0);
+    nextHour.setHours(nextHour.getHours() + 1);
+
+    let code = null;
+    let temp = null;
+    let wind = null;
+    let rainProb = null;
+    let icon = '⛅';
+
+    if (data?.hourly?.time?.length){
+      const i = nearestHourlyIndex(data.hourly.time, nextHour);
+      code = data.hourly.weather_code?.[i];
+      temp = data.hourly.temperature_2m?.[i];
+      wind = data.hourly.wind_speed_10m?.[i];
+      rainProb = data.hourly.precipitation_probability?.[i];
+      icon = wxIconFromCode(code, rainProb, null);
+    } else if (data?.current){
+      code = data.current.weather_code;
+      temp = data.current.temperature_2m;
+      wind = data.current.wind_speed_10m;
+      rainProb = data.current.precipitation_probability;
+      icon = wxIconFromCode(code, rainProb, data.current.precipitation);
+    }
+
+    const mood = forecastMoodClass(icon, code);
+    const wxMod = wxModifierClass(icon);
+    el.forecastStrip.className = `forecastStrip ${mood} ${wxMod}`.trim();
+
+    if (el.forecastIcon) el.forecastIcon.textContent = icon;
+
+    const parts = [];
+    if (typeof temp === 'number') parts.push(`${Math.round(temp)}°C`);
+    if (typeof wind === 'number') parts.push(`Wind ${Math.round(wind)} mph`);
+    if (typeof rainProb === 'number') parts.push(`Rain ${Math.round(rainProb)}%`);
+
+    const line = parts.length ? `Next hour: ${parts.join(' • ')}` : 'Next hour forecast unavailable';
+    if (el.forecastText) el.forecastText.textContent = line;
+
+    el.forecastStrip.style.display = '';
+  } catch {
+    el.forecastStrip.style.display = 'none';
+  }
+}
+
 // ---------- Sun tint ----------
 function sunValueToTintClass(effective, now){
   if (!effective || effective.kind === 'no-sun') return 'cardTint0';
@@ -497,73 +552,11 @@ function sunLine(effective, now){
 }
 
 // ---------- Next sun in Nottingham ----------
-async function fetchNextSunDaily(){
-  const lat = NOTTINGHAM_CENTER.lat;
-  const lng = NOTTINGHAM_CENTER.lng;
-  const url =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${lat}&longitude=${lng}` +
-    `&daily=weather_code,precipitation_probability_max,cloud_cover_mean` +
-    `&forecast_days=7&timezone=auto`;
-  const res = await fetch(url, { cache:'no-store' });
-  if (!res.ok) throw new Error('daily forecast failed');
-  return res.json();
-}
-function isLikelySunnyDay(daily, i){
-  const rain = daily.precipitation_probability_max?.[i];
-  const cloud = daily.cloud_cover_mean?.[i];
-  if (typeof rain === 'number' && typeof cloud === 'number'){
-    return rain < 40 && cloud < 60;
-  }
-  const code = daily.weather_code?.[i];
-  if (typeof code === 'number'){
-    return code === 0 || code === 1 || code === 2;
-  }
-  return false;
-}
-function formatDayLabel(isoDateStr){
-  const d = new Date(isoDateStr + 'T12:00:00');
-  return d.toLocaleDateString(undefined, { weekday:'short', day:'2-digit', month:'short' });
-}
-async function updateNextSunCard(force=false){
-  const now = Date.now();
-  if (!force && (now - nextSunCache.t) < NEXTSUN_TTL_MS){
-    el.nextSunText.textContent = nextSunCache.msg;
-    return;
-  }
-  try{
-    el.nextSunText.textContent = 'Checking forecast…';
-    const data = await fetchNextSunDaily();
-    const daily = data.daily || {};
-    const days = daily.time || [];
-    let pick = null;
-    for (let i=0;i<days.length;i++){
-      if (isLikelySunnyDay(daily, i)){ pick = days[i]; break; }
-    }
-    if (!pick){
-      nextSunCache = { t: Date.now(), msg: 'No likely sunny day in the next 7 days (forecast).' };
-      el.nextSunText.textContent = nextSunCache.msg;
-      return;
-    }
-    const pickDate = new Date(pick + 'T12:00:00');
-    const nowDate = new Date();
-    const daysAway = Math.round((pickDate - new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate(), 12,0,0,0)) / (24*60*60*1000));
-    const label = formatDayLabel(pick);
-    const msg = daysAway <= 0 ? `Likely sun today (${label}).` : `Likely sun in ${daysAway} day${daysAway===1?'':'s'} (${label}).`;
-    nextSunCache = { t: Date.now(), msg };
-    el.nextSunText.textContent = msg;
-  } catch {
-    nextSunCache = { t: Date.now(), msg: 'Forecast unavailable.' };
-    el.nextSunText.textContent = nextSunCache.msg;
-  }
-}
-
 // Refresh (clears caches and rerenders)
 el.planRefresh?.addEventListener('click', async () => {
   weatherCache.clear();
   windowsCache.clear();
-  nextSunCache.t = 0;
-  await render();
+    await render();
 });
 // ---------- Map ----------
 function initMapOnce(){
@@ -773,14 +766,8 @@ async function render(){
 
   // Plan cards
   const best1 = pickBest(rows, now);
-
-  const hasAnySunInHorizon = rows.some(r => (r.effective.kind === 'sunny-now' || r.effective.kind === 'next-sun'));
-  if (!hasAnySunInHorizon){
-    if (el.nextSunInline) el.nextSunInline.style.display = '';
-    await updateNextSunCard(false);
-  } else {
-    if (el.nextSunInline) el.nextSunInline.style.display = 'none';
-  }
+  // Next-hour forecast strip (always shown)
+  await updateForecastStrip(baseLoc, now);
 
   const pivot = best1
     ? (best1.effective.kind === 'sunny-now' ? best1.effective.end : best1.effective.start)
