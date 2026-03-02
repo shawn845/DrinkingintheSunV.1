@@ -192,8 +192,7 @@ function openLine(pub, now){
 function setFavOnly(v){
   favOnly = v;
   saveBool('ditS_favOnly', v);
-  el.favToggleText.textContent = v ? 'Favs ✓' : 'Favs';
-  el.favToggleBtn?.classList.toggle('active', v);
+  el.favToggleText.textContent = v ? 'Favourites ✓' : 'Favourites';
   render();
 }
 el.favToggleBtn?.addEventListener('click', () => setFavOnly(!favOnly));

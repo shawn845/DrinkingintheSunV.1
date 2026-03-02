@@ -94,12 +94,6 @@ button{
   color:#4b2fb9;
 }
 
-
-.btn.active{
-  border-color:#cfe0ff;
-  background:#eef4ff;
-  color:var(--next);
-}
 /* Suggested plan header bar */
 .planBar{
   background:var(--panel);
