@@ -21,11 +21,9 @@
     <div class="topbar">
       <button id="nearBtn" class="btn"><span id="nearBtnText">Near me</span></button>
       <button id="louBtn" class="btn lou"><span id="louBtnText">Perfect Day</span></button>
-      <button id="favToggleBtn" class="btn"><span id="favToggleText">Favourites</span></button>
+      <button id="favToggleBtn" class="btn"><span id="favToggleText">Favs</span></button>
       <button id="viewToggleBtn" class="btn"><span id="viewToggleText">Map</span></button>
     </div>
-
-    
 
     <div id="listPanel" class="panel">
       <div class="planBar">
@@ -36,8 +34,10 @@
         <button id="planRefresh" class="miniBtn" type="button">Refresh</button>
       </div>
 
-      <div id="nextSunInline" class="nextSunInline" style="display:none">
-        <div id="nextSunText" class="nextSunInlineText">Checking forecast…</div>
+      <!-- Next hour forecast (replaces “Likely sun in X days”) -->
+      <div id="forecastStrip" class="forecastStrip">
+        <div id="forecastIcon" class="badge wx forecastIcon">⛅</div>
+        <div id="forecastText" class="forecastText">Next hour: …</div>
       </div>
 
       <div id="plan"></div>
@@ -51,7 +51,7 @@
     </div>
   </div>
 
-  <!-- Lou Reed overlay -->
+  <!-- Perfect Day overlay -->
   <div id="louOverlay" class="overlay" style="display:none" aria-hidden="true">
     <div class="overlayCard">
       <div class="overlayTop">
@@ -78,27 +78,23 @@
           <select id="louStops">
             <option value="4">4 pubs</option>
             <option value="5" selected>5 pubs</option>
+            <option value="6">6 pubs</option>
           </select>
         </label>
-
-        <button id="louBuild" class="btn primary" type="button">Build plan</button>
       </div>
 
       <div class="overlayActions">
-        <button id="louShare" class="smallBtn" type="button" disabled>Share</button>
-        <button id="louCopy" class="smallBtn" type="button" disabled>Copy</button>
+        <button id="louBuild" class="smallBtn primary" type="button">Build plan</button>
+        <button id="louClose2" class="smallBtn" type="button">Close</button>
       </div>
 
       <div id="louOut" class="overlayOut"></div>
-      <div class="overlayHint">Tip: tap “Near me” first for better routing.</div>
+      <div class="overlayHint">Notes: This is a heuristic plan (not live navigation). Sun windows rely on the CSV spots.</div>
     </div>
     <div id="louBackdrop" class="overlayBackdrop"></div>
   </div>
 
-  <!-- SunCalc -->
-  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
-
-  <!-- Leaflet -->
+  <!-- Leaflet (map) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
@@ -107,7 +103,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+        navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
       });
     }
   </script>
