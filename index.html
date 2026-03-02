@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Drinking in the Sun</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./public/styles.css" />
+
+  <!-- Leaflet (map) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+</head>
+<body>
+  <div class="app">
+    <header class="brand">
+      <div class="brandTitle">Drinking in the Sun</div>
+      <div class="brandSub">Nottingham</div>
+    </header>
+
+    <div class="topbar">
+      <button id="nearBtn" class="btn"><span id="nearBtnText">Near</span></button>
+      <button id="louBtn" class="btn lou"><span id="louBtnText">Perfect</span></button>
+      <button id="favToggleBtn" class="btn"><span id="favToggleText">Favs</span></button>
+      <button id="viewToggleBtn" class="btn"><span id="viewToggleText">Map</span></button>
+    </div>
+
+    <div id="listPanel" class="panel">
+      <div class="planBar">
+        <div>
+          <div class="planBarTitle">Suggested plan</div>
+          <div id="planMeta" class="planMeta"></div>
+        </div>
+        <button id="planRefresh" class="miniBtn" type="button">Refresh</button>
+      </div>
+
+      <!-- Next hour forecast (replaces “Likely sun in X days”) -->
+      <div id="forecastStrip" class="forecastStrip">
+        <div id="forecastIcon" class="badge wx forecastIcon">⛅</div>
+        <div id="forecastText" class="forecastText">Next hour: …</div>
+      </div>
+
+      <div id="plan"></div>
+      <div class="sectionTitle">Options</div>
+      <div id="results"></div>
+    </div>
+
+    <div id="mapPanel" class="panel" style="display:none">
+      <div id="map" class="map"></div>
+      <div id="mapCard" class="mapCard" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Perfect Day overlay -->
+  <div id="louOverlay" class="overlay" style="display:none" aria-hidden="true">
+    <div class="overlayCard">
+      <div class="overlayTop">
+        <div>
+          <div class="overlayTitle">Perfect</div>
+          <div class="overlaySub">A 4–5 pub plan that tries to keep you in the sun.</div>
+        </div>
+        <button id="louClose" class="iconBtn" type="button" aria-label="Close">✕</button>
+      </div>
+
+      <div class="overlayControls">
+        <div class="seg">
+          <button id="modeWalk" class="segBtn active" type="button">Walking</button>
+          <button id="modeCycle" class="segBtn" type="button">Cycling</button>
+        </div>
+
+        <label class="field">
+          <span>Start time</span>
+          <input id="louStart" type="time" value="12:00" />
+        </label>
+
+        <label class="field">
+          <span>Stops</span>
+          <select id="louStops">
+            <option value="4">4 pubs</option>
+            <option value="5" selected>5 pubs</option>
+            <option value="6">6 pubs</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="overlayActions">
+        <button id="louBuild" class="smallBtn primary" type="button">Build plan</button>
+        <button id="louClose2" class="smallBtn" type="button">Close</button>
+      </div>
+
+      <div id="louOut" class="overlayOut"></div>
+      <div class="overlayHint">Notes: This is a heuristic plan (not live navigation). Sun windows rely on the CSV spots.</div>
+    </div>
+    <div id="louBackdrop" class="overlayBackdrop"></div>
+  </div>
+
+  <!-- Leaflet (map) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <script src="./public/app.js"></script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+      });
+    }
+  </script>
+</body>
+</html>
