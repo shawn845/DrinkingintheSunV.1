@@ -1,3 +1,4 @@
+/* Drinking in the Sun — v2 styling */
 :root{
   --bg:#f6f6f6;
   --panel:#ffffff;
@@ -10,7 +11,6 @@
   --next:#0b62d6;
 
   --btn:#ffffff;
-  --btn2:#f3f3f3;
 
   --shadow: 0 1px 0 rgba(0,0,0,0.03), 0 10px 24px rgba(0,0,0,0.05);
 }
@@ -38,20 +38,16 @@ button{
   gap:10px;
   padding:10px;
 }
-.panel{
-  flex:1;
-  min-height:0;
-  background:transparent;
-}
+.panel{ flex:1; min-height:0; background:transparent; }
 #listPanel{ overflow:auto; }
 #mapPanel{ position:relative; overflow:hidden; }
 
-/* Brand header */
+/* Brand header (pill) */
 .brand{
   background:var(--panel);
   border:1px solid var(--line);
-  border-radius:16px;
-  padding:10px 12px;
+  border-radius:18px;
+  padding:12px 14px;
   box-shadow: var(--shadow);
 
   display:flex;
@@ -60,7 +56,7 @@ button{
   gap:12px;
 }
 .brandTitle{
-  font-size:16px;
+  font-size:18px;
   font-weight:900;
   color:var(--text-strong);
   letter-spacing:-0.02em;
@@ -72,7 +68,7 @@ button{
   white-space:nowrap;
 }
 
-/* Top buttons (compact) */
+/* Top buttons (compact + less vertical space) */
 .topbar{
   display:grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -92,20 +88,13 @@ button{
   text-overflow:ellipsis;
 }
 .btn:active{ transform: translateY(1px); }
-
-.btn.primary{
-  border-color:#cfe0ff;
-  background:#eef4ff;
-  color:var(--next);
-}
-
 .btn.lou{
   border-color:#e9e1ff;
   background:#f6f3ff;
   color:#4b2fb9;
 }
 
-/* Suggested plan header (with Refresh) */
+/* Suggested plan header bar */
 .planBar{
   background:var(--panel);
   border:1px solid var(--line);
@@ -139,19 +128,46 @@ button{
   font-weight:900;
   box-shadow: 0 1px 0 rgba(0,0,0,0.03), 0 6px 14px rgba(0,0,0,0.05);
 }
-.miniBtn:active{ transform: translateY(1px); }
 
-/* Next sun (only shown when no sun in next 2 hours) */
-.nextSunInline{
-  border:1px dashed var(--line);
-  background:rgba(255,255,255,0.7);
+/* Next-hour forecast strip */
+.forecastStrip{
+  border:1px solid var(--line);
   border-radius:14px;
   padding:10px 12px;
   margin: -2px 0 10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:rgba(255,255,255,0.7);
 }
-.nextSunInlineText{
+.forecastIcon{
+  flex:0 0 auto;
+  font-size:16px;
+}
+.forecastText{
   font-size:13px;
   color:var(--text-strong);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* Mood backgrounds */
+.forecastStrip.moodSun{
+  background: linear-gradient(180deg, rgba(255,211,77,0.22) 0%, rgba(255,255,255,0.78) 80%);
+}
+.forecastStrip.moodMixed{
+  background: linear-gradient(180deg, rgba(140,150,160,0.14) 0%, rgba(255,255,255,0.78) 80%);
+}
+.forecastStrip.moodFog{
+  background: linear-gradient(180deg, rgba(150,160,175,0.16) 0%, rgba(255,255,255,0.78) 80%);
+}
+.forecastStrip.moodRain{
+  border-color:#cfe0ff;
+  background: linear-gradient(180deg, rgba(120,160,220,0.18) 0%, rgba(255,255,255,0.78) 80%);
+}
+.forecastStrip.moodSnow{
+  background: linear-gradient(180deg, rgba(200,210,235,0.20) 0%, rgba(255,255,255,0.78) 80%);
 }
 
 /* Section headings */
@@ -174,45 +190,22 @@ button{
   position:relative;
   overflow:hidden;
 }
-
-.bigCard.featured{ border-left: 6px solid #eef4ff; }
-.bigCard.featured2{ border-left: 6px solid #f6f3ff; }
-
 .bigTop, .cardTop{
   display:flex;
   justify-content:space-between;
   gap:10px;
   align-items:flex-start;
 }
-
 .bigTitle{ font-size:16px; font-weight:900; color:var(--text-strong); }
 .bigSub{ font-size:12px; color:var(--muted); margin-top:2px; }
-
 .cardTitle{ font-weight:900; color:var(--text-strong); }
 .cardSub{ font-size:12px; color:var(--muted); margin-top:2px; }
-
-.rowLine{
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-  font-size:13px;
-  color:var(--text-strong);
-  margin-top:10px;
-}
-
-.mini{
-  color:var(--muted);
-  font-size:12px;
-  margin-top:6px;
-  line-height:1.35;
-}
 
 .actions, .cardActions{
   display:flex;
   gap:8px;
   margin-top:10px;
 }
-
 .actionBtn, .smallBtn{
   border:1px solid var(--line);
   background:var(--btn);
@@ -222,8 +215,6 @@ button{
   font-size:14px;
   font-weight:900;
 }
-.actionBtn:active, .smallBtn:active{ transform: translateY(1px); }
-
 .actions .actionBtn{ flex:1; }
 .actionBtn.primary{
   border-color:#cfe0ff;
@@ -231,6 +222,7 @@ button{
   color:var(--next);
 }
 
+/* Star */
 .starBtn{
   border:1px solid var(--line);
   background:var(--btn);
@@ -245,7 +237,7 @@ button{
   background:#fff9e6;
 }
 
-/* Weather icon badge (pill) */
+/* Weather icon pill */
 .badge.wx{
   border:1px solid var(--line);
   background:#fbfbfb;
@@ -265,7 +257,7 @@ button{
   box-shadow: var(--shadow);
 }
 
-/* Bottom sheet card */
+/* Bottom sheet */
 .mapCard{
   position:absolute;
   left:10px;
@@ -305,12 +297,6 @@ button{
   line-height:1;
   font-weight:900;
 }
-.mapCardRow{
-  margin-top:10px;
-  font-size:12px;
-  color:var(--muted);
-  line-height:1.35;
-}
 .mapCardActions{
   display:flex;
   gap:8px;
@@ -324,7 +310,7 @@ button{
 .overlayCard{
   position:relative;
   z-index:2;
-  margin:10px;
+  margin:12px;
   max-width:720px;
   background:var(--panel);
   border:1px solid var(--line);
@@ -422,8 +408,8 @@ button{
   font-size:12px;
 }
 
-/* --- Visible tint accents --- */
-.cardTint0 { --tint: rgba(0,0,0,0.03); --bar: rgba(0,0,0,0.12); }   /* neutral for no-sun */
+/* --- Visible tint accents (sun windows) --- */
+.cardTint0 { --tint: rgba(0,0,0,0.03); --bar: rgba(0,0,0,0.12); }
 .cardTint1 { --tint: rgba(255, 211, 77, 0.16); --bar: rgba(255, 211, 77, 0.70); }
 .cardTint2 { --tint: rgba(255, 211, 77, 0.24); --bar: rgba(255, 211, 77, 0.82); }
 .cardTint3 { --tint: rgba(255, 211, 77, 0.32); --bar: rgba(255, 211, 77, 0.92); }
@@ -445,7 +431,3 @@ button{
   border-radius:16px 0 0 16px;
   background: var(--bar, rgba(0,0,0,0.12));
 }
-
-/* Weather badge tweaks */
-.wxMixed .badge.wx{ background:#f4f6f8; }
-.wxRain  .badge.wx{ background:#eef4ff; border-color:#cfe0ff; }
