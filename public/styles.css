@@ -1,0 +1,143 @@
+
+:root{
+  --bg:#fbfaf7;
+  --panel:#ffffff;
+  --line:rgba(0,0,0,.08);
+  --text:#2f2f2f;
+  --muted:#6c6c6c;
+  --sun:#f5c542;
+  --radius:18px;
+  --shadow:0 8px 20px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+button{font:inherit}
+img{display:block}
+.app{min-height:100vh;min-height:100svh;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:20;padding:12px;
+  background:linear-gradient(to bottom, rgba(251,250,247,.98), rgba(251,250,247,.92));
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+  display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+}
+.toggle{
+  display:flex;background:var(--panel);border:1px solid var(--line);
+  border-radius:999px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04)
+}
+.toggleBtn{flex:1;border:0;background:transparent;color:var(--muted);padding:10px 14px;font-weight:700}
+.toggleBtn.isActive{background:rgba(245,197,66,.22);color:var(--text)}
+.btnPrimary{
+  border:0;background:rgba(245,197,66,.95);color:#1c1c1c;font-weight:800;
+  padding:10px 14px;border-radius:999px;box-shadow:0 6px 14px rgba(245,197,66,.25)
+}
+.weatherBar{
+  margin:10px 12px 0;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:0 2px 10px rgba(0,0,0,.05);padding:10px 12px
+}
+.weatherBar.sunny{background:linear-gradient(180deg,#fff7db,#fffdf4)}
+.weatherBar.cloudy{background:linear-gradient(180deg,#f4f4f4,#fcfcfc)}
+.weatherBar.rainy{background:linear-gradient(180deg,#eef5fb,#fbfdff)}
+.weatherLeft{display:flex;gap:10px;align-items:center}
+.weatherIcon{
+  width:42px;height:42px;border-radius:14px;background:rgba(0,0,0,.04);
+  display:flex;align-items:center;justify-content:center;font-size:22px
+}
+.weatherTitle{font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.2px}
+.weatherLine{font-size:14px;font-weight:700}
+.main{flex:1;padding:12px}
+.view{display:none}
+.view.isActive{display:block}
+.rowWrap{margin-top:14px}
+.rowHeader{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:0 2px 8px}
+.rowTitle{margin:0;font-size:16px}
+.rowMeta{font-size:12px;color:var(--muted)}
+.hScroll{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x proximity}
+.hScroll::-webkit-scrollbar{display:none}
+.vList{display:grid;grid-template-columns:1fr;gap:12px}
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden
+}
+.cardSmall{min-width:248px;max-width:268px;scroll-snap-align:start}
+.cardButton{border:0;background:transparent;padding:0;width:100%;text-align:left;display:block}
+.cardImg{width:100%;aspect-ratio:4/3;object-fit:cover;background:#ececec}
+.cardBody{padding:12px}
+.cardTitle{margin:0;font-size:16px;line-height:1.15;font-weight:850}
+.cardMeta{margin-top:8px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.statusTop{font-size:13px;font-weight:850}
+.statusLine{font-size:12px;color:var(--muted);font-weight:700;margin-top:3px}
+.dist{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+.statusSun .statusTop{color:#7e5b00}
+.statusShade .statusTop,.statusNone .statusTop{color:#606060}
+.isHidden{display:none !important}
+.map{
+  width:100%;min-height:68vh;min-height:68svh;border-radius:20px;overflow:hidden;
+  box-shadow:var(--shadow);border:1px solid var(--line)
+}
+.modalOverlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.46);z-index:50;display:flex;
+  align-items:flex-end;justify-content:center;padding:0
+}
+.modal{
+  width:100%;max-width:700px;max-height:100vh;max-height:100svh;background:var(--bg);
+  border-radius:24px 24px 0 0;overflow:auto;position:relative
+}
+.modalContent{padding-bottom:20px}
+.modalClose{
+  position:sticky;top:12px;float:right;z-index:10;margin:12px 12px 0 0;width:42px;height:42px;
+  border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.92);
+  box-shadow:0 2px 8px rgba(0,0,0,.08)
+}
+.heroImg{width:100%;aspect-ratio:4/3;object-fit:cover;background:#ececec}
+.detailBody{padding:14px 14px 0}
+.detailTitle{margin:0;font-size:24px;line-height:1.05}
+.detailAddress{margin-top:8px;font-size:14px;color:var(--muted);font-weight:700}
+.detailNotes{margin-top:10px;font-size:14px;line-height:1.35;color:#4a4a4a}
+.detailActions{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+.pillBtn{
+  display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);
+  background:var(--panel);color:var(--text);padding:10px 14px;border-radius:999px;
+  font-weight:800;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.05)
+}
+.spotList{padding:14px;display:grid;gap:12px}
+.spotCard{
+  background:var(--panel);border:1px solid var(--line);border-radius:18px;
+  box-shadow:0 6px 16px rgba(0,0,0,.06);padding:14px
+}
+.spotHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.spotKicker{font-size:12px;color:var(--muted);font-weight:850;letter-spacing:.25px;text-transform:uppercase}
+.spotName{margin-top:4px;font-size:18px;font-weight:850;line-height:1.12}
+.spotBadge{
+  font-size:11px;font-weight:850;padding:6px 10px;border-radius:999px;white-space:nowrap;
+  border:1px solid var(--line);background:#fafafa;color:#666
+}
+.spotStatus{margin-top:10px;font-size:15px;font-weight:850}
+.spotSub{margin-top:4px;font-size:13px;color:var(--muted);font-weight:750}
+.timelineWrap{margin-top:14px}
+.timelineLabels{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.timeline{position:relative;height:14px;border-radius:999px;background:#ececec;overflow:hidden}
+.timelineSun{
+  position:absolute;top:0;bottom:0;background:linear-gradient(90deg,#f4d77d,#f5c542);
+  border-radius:999px
+}
+.timelineNow{position:absolute;top:-3px;width:12px;height:20px;transform:translateX(-50%)}
+.timelineNow::before{
+  content:"";position:absolute;left:4px;top:0;width:4px;height:20px;border-radius:999px;background:#3f3f3f
+}
+.timelineNowLabel{margin-top:6px;font-size:12px;color:var(--muted);font-weight:750}
+.spotWindow{margin-top:10px;font-size:13px;font-weight:800;color:#4a4a4a}
+.emptyState{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px;color:var(--muted)
+}
+@media (min-width:720px){
+  .main{max-width:980px;width:100%;margin:0 auto;padding:16px}
+  .topbar{grid-template-columns:220px auto}
+  .vList{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
