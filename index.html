@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Drinking in the Sun Nottingham | Find pubs in the sun</title>
+  <meta name="description" content="Find pubs in the sun across Nottingham and Nottinghamshire. See which pubs are sunny now, which ones keep the latest sun today, and exactly where to sit when you get there." />
+  <meta name="theme-color" content="#fbfaf7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Drinking in the Sun" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./public/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./public/icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./public/icons/favicon-16.png" />
+  <link rel="shortcut icon" href="./public/icons/favicon-32.png" />
+  <meta property="og:title" content="Drinking in the Sun Nottingham | Find pubs in the sun" />
+  <meta property="og:description" content="Find pubs in the sun across Nottingham and Nottinghamshire. See which pubs are sunny now, which ones keep the latest sun today, and exactly where to sit when you get there." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Drinking in the Sun" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Drinking in the Sun Nottingham | Find pubs in the sun" />
+  <meta name="twitter:description" content="Find pubs in the sun across Nottingham and Nottinghamshire. See which pubs are sunny now, which ones keep the latest sun today, and exactly where to sit when you get there." />
+  <style>
+    :root{--bg:#fbfaf7;--panel:#fff;--line:rgba(0,0,0,.08);--text:#2f2f2f;--muted:#6c6c6c;--sun:#d8ae32;--sun2:#f5d471;--radius:22px;--shadow:0 10px 24px rgba(0,0,0,.08);--max:1120px}
+    *{box-sizing:border-box} html,body{margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#fffdf7,#fbfaf7);color:var(--text);line-height:1.45}
+    a{text-decoration:none;color:inherit}
+    .wrap{max-width:var(--max);margin:0 auto;padding:24px 18px 56px}
+    .brandBar{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+    .brandBar img{width:52px;height:52px;border-radius:16px;display:block;box-shadow:0 8px 18px rgba(0,0,0,.08)}
+    .brandText{display:flex;flex-direction:column;line-height:1.04}
+    .brandText strong{font-size:26px;letter-spacing:-.03em}
+    .brandText span{font-size:14px;color:var(--muted)}
+    .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:center;padding:8px 0 10px}
+    .eyebrow{display:inline-block;padding:8px 12px;border-radius:999px;background:rgba(216,174,50,.18);font-weight:800;font-size:13px;color:#7e5b00;margin-bottom:14px}
+    h1{font-size:clamp(34px,6vw,64px);line-height:1.02;letter-spacing:-.03em;margin:0 0 14px}
+    .sub{font-size:clamp(18px,2.6vw,24px);color:#4a4a4a;max-width:720px;margin:0 0 22px}
+    .ctaRow{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:14px 18px;border-radius:999px;font-weight:800;border:1px solid var(--line);background:var(--panel);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+    .btnPrimary{background:linear-gradient(180deg,var(--sun2),var(--sun));color:#1c1c1c;box-shadow:0 8px 18px rgba(216,174,50,.25);border-color:transparent}
+    .fine{font-size:14px;color:var(--muted);margin-top:14px}
+    .heroCard{background:var(--panel);border:1px solid var(--line);border-radius:28px;box-shadow:var(--shadow);overflow:hidden;padding:18px;display:flex;align-items:center;justify-content:center;min-height:420px}
+    .phone{width:min(320px,100%);background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:34px;padding:12px;box-shadow:0 18px 36px rgba(0,0,0,.09)}
+    .phoneScreen{border-radius:24px;overflow:hidden;background:#fffdf3;border:1px solid rgba(216,174,50,.22)}
+    .miniTop{display:flex;gap:8px;align-items:center;padding:12px;background:#fff}
+    .miniTop img{width:28px;height:28px;border-radius:9px}
+    .miniTitle{font-weight:800;font-size:14px;letter-spacing:-.02em}
+    .miniRow{padding:12px;border-top:1px solid rgba(0,0,0,.06)}
+    .miniBadge{display:inline-block;background:#fff3c8;color:#7e5b00;padding:5px 9px;border-radius:999px;font-weight:800;font-size:12px;margin-bottom:8px}
+    .miniCard{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:12px;box-shadow:0 4px 10px rgba(0,0,0,.04)}
+    .miniCard strong{display:block;font-size:15px;margin-bottom:5px}
+    .miniCard span{display:block;font-size:13px;color:#646464}
+    .section{margin-top:44px}
+    .section h2{font-size:clamp(26px,3vw,38px);margin:0 0 10px;letter-spacing:-.02em}
+    .section p.lead{color:#575757;font-size:18px;margin:0 0 20px;max-width:760px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:24px;overflow:hidden;box-shadow:var(--shadow);padding:18px}
+    .cardIcon{width:56px;height:56px;border-radius:18px;background:linear-gradient(180deg,#fff3c8,#f5d471);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:14px}
+    .card h3{margin:0 0 8px;font-size:22px;letter-spacing:-.02em}
+    .card p{margin:0;color:#5d5d5d}
+    .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .step{background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow)}
+    .stepNum{width:34px;height:34px;border-radius:999px;background:rgba(216,174,50,.18);color:#7e5b00;display:flex;align-items:center;justify-content:center;font-weight:900;margin-bottom:12px}
+    .install{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}
+    .install ol{margin:12px 0 0 20px;padding:0}
+    .install li{margin:8px 0}
+    .footerCta{margin-top:44px;text-align:center;background:linear-gradient(180deg,#fff7db,#fffdf4);border:1px solid rgba(216,174,50,.28);border-radius:28px;padding:28px 18px;box-shadow:var(--shadow)}
+    .footerCta p{color:#5d5d5d;max-width:720px;margin:10px auto 18px}
+    @media (max-width: 900px){.hero{grid-template-columns:1fr}.grid3,.steps{grid-template-columns:1fr}.heroCard{min-height:unset}}
+  </style>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+          }
+        } catch (e) {}
+      });
+    }
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brandBar">
+      <img src="./public/icons/icon-192.png" alt="Drinking in the Sun logo" />
+      <div class="brandText">
+        <strong>Drinking in the Sun</strong>
+        <span>Nottingham</span>
+      </div>
+    </div>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Built in Nottingham · Expanding across Nottinghamshire</div>
+        <h1>Find pubs in the sun across Nottinghamshire</h1>
+        <p class="sub">See which pubs are sunny now, which ones keep the latest sun today, and exactly where to sit when you get there.</p>
+        <div class="ctaRow">
+          <a class="btn btnPrimary" href="./app/">Open the app</a>
+          <a class="btn" href="#install">Install on iPhone</a>
+        </div>
+        <div class="fine">No account needed. Use the landing page at the main site URL. The app lives at <strong>/app/</strong>.</div>
+      </div>
+      <div class="heroCard">
+        <div class="phone" aria-hidden="true">
+          <div class="phoneScreen">
+            <div class="miniTop">
+              <img src="./public/icons/icon-192.png" alt="" />
+              <div class="miniTitle">Drinking in the Sun</div>
+            </div>
+            <div class="miniRow">
+              <div class="miniBadge">Sunny now</div>
+              <div class="miniCard">
+                <strong>The Angel</strong>
+                <span>Sun until 16:40</span>
+                <span>Best spot: front tables</span>
+              </div>
+            </div>
+            <div class="miniRow">
+              <div class="miniBadge">Next best</div>
+              <div class="miniCard">
+                <strong>The Organ Grinder</strong>
+                <span>Sun from 17:05</span>
+                <span>Best spot: beer garden bench</span>
+              </div>
+            </div>
+            <div class="miniRow">
+              <div class="miniBadge">Map + detail</div>
+              <div class="miniCard">
+                <strong>See exactly where to sit</strong>
+                <span>Directions, sun windows, and seating notes</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>How it works</h2>
+      <p class="lead">Use the app to find sunny pubs near you, compare later-sun options, and check the exact seating location before you arrive.</p>
+      <div class="steps">
+        <div class="step"><div class="stepNum">1</div><h3>Tap Near me</h3><p>Find pubs around your current location and show the best sunny options nearby.</p></div>
+        <div class="step"><div class="stepNum">2</div><h3>Check the sun</h3><p>See what is sunny now, what keeps the latest sun today, and how current conditions compare with the next-hour forecast.</p></div>
+        <div class="step"><div class="stepNum">3</div><h3>Open the pub</h3><p>Get directions and the exact seating location for the best sun.</p></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What the app does</h2>
+      <p class="lead">The app is built around three simple views: list, map, and detail.</p>
+      <div class="grid3">
+        <div class="card"><div class="cardIcon">☀️</div><h3>See the best sun near you</h3><p>Use the app to find nearby pubs that are sunny now and compare them with later-sun options across the city.</p></div>
+        <div class="card"><div class="cardIcon">🗺️</div><h3>See pubs on the map</h3><p>Browse pub locations visually, check where you are, and compare sunny spots at a glance.</p></div>
+        <div class="card"><div class="cardIcon">🍋</div><h3>Know exactly where to sit</h3><p>Each pub shows the best seating location, sun timing, and directions.</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="install">
+      <h2>Install on iPhone</h2>
+      <div class="install">
+        <p>Use Drinking in the Sun like an app on your home screen.</p>
+        <ol>
+          <li>Open the app in <strong>Safari</strong></li>
+          <li>Tap the <strong>Share</strong> button</li>
+          <li>Tap <strong>Add to Home Screen</strong></li>
+        </ol>
+        <div class="ctaRow" style="margin-top:18px"><a class="btn btnPrimary" href="./app/">Open app in Safari</a></div>
+      </div>
+    </section>
+
+    <section class="footerCta">
+      <h2>Ready to find your next sunny pub?</h2>
+      <p>We’re currently adding more pubs, refining exact seating locations, and improving sun timing as the database grows.</p>
+      <div class="ctaRow" style="justify-content:center"><a class="btn btnPrimary" href="./app/">Open the app</a><a class="btn" href="#install">Install on iPhone</a></div>
+    </section>
+  </div>
+</body>
+</html>

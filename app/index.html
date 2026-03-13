@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Drinking in the Sun Nottingham</title>
+  <meta name="description" content="Find pubs in the sun across Nottingham and Nottinghamshire. See which pubs are sunny now, which ones keep the latest sun today, and exactly where to sit when you get there." />
+  <meta name="theme-color" content="#fbfaf7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Drinking in the Sun" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./public/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./public/icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./public/icons/favicon-16.png" />
+  <link rel="shortcut icon" href="./public/icons/favicon-32.png" />
+  <link rel="stylesheet" href="./public/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+          }
+        } catch (e) {}
+      });
+    }
+  </script>
+
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="topbar">
+      <div class="brandLockup" aria-label="Drinking in the Sun">
+        <img src="./public/icons/icon-192.png" alt="Drinking in the Sun logo" class="brandLockupIcon" />
+        <div class="brandLockupText">Drinking in the Sun</div>
+      </div>
+      <div class="toggle" role="tablist" aria-label="View toggle">
+        <button id="btnList" class="toggleBtn isActive" type="button" aria-selected="true">List</button>
+        <button id="btnMap" class="toggleBtn" type="button" aria-selected="false">Map</button>
+      </div>
+      <button id="btnNearMe" class="btnPrimary" type="button">Near me</button>
+    </header>
+
+    <section id="weatherBar" class="weatherBar" aria-live="polite">
+      <div class="weatherLeft">
+        <div id="weatherIcon" class="weatherIcon" aria-hidden="true">⛅</div>
+        <div class="weatherText">
+          <div class="weatherTitle">Current conditions</div>
+          <div id="weatherLine" class="weatherLine">Loading weather…</div>
+        </div>
+      </div>
+    </section>
+
+    <main class="main">
+      <section id="listView" class="view isActive" aria-label="Pub list">
+        <div id="rowNearMeWrap" class="rowWrap isHidden">
+          <div class="rowHeader">
+            <h2 class="rowTitle">Pubs near me</h2>
+            <div id="rowNearMeMeta" class="rowMeta"></div>
+          </div>
+          <div id="rowNearMe" class="hScroll" role="list"></div>
+        </div>
+
+        <div class="rowWrap">
+          <div class="rowHeader">
+            <h2 class="rowTitle">Sunniest now</h2>
+            <div id="rowSunniestMeta" class="rowMeta"></div>
+          </div>
+          <div id="rowSunniest" class="hScroll" role="list"></div>
+        </div>
+
+        <div class="rowWrap">
+          <div class="rowHeader">
+            <h2 class="rowTitle">All pubs</h2>
+            <div id="allMeta" class="rowMeta"></div>
+          </div>
+          <div id="allList" class="vList" role="list"></div>
+        </div>
+      </section>
+
+      <section id="mapView" class="view" aria-label="Map">
+        <div id="map" class="map"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modalOverlay" class="modalOverlay isHidden" role="dialog" aria-modal="true" aria-label="Pub details">
+    <div class="modal">
+      <button id="btnClose" class="modalClose" type="button" aria-label="Close">✕</button>
+      <div id="modalContent" class="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="./public/app.js"></script>
+</body>
+</html>
